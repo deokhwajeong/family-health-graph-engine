@@ -1,3 +1,8 @@
+echo "- Jan 11: API stabilization and rebase cleanup" >> README.md
+git add README.md
+git commit -m "Chore: daily progress note"
+git push
+
 # Household Health Graph & Family Dashboard
 
 A portfolio project that unifies graph-based health modeling with a family-centric dashboard (web + TV UI).  
