@@ -1,11 +1,25 @@
-# backend/main.py
+"""
+Household Health Graph API with Machine Learning.
 
-from fastapi import FastAPI
+A FastAPI application that combines graph-based health modeling with ML inference,
+providing insights into household health patterns through multiple analytical lenses:
+- Graph embeddings (GraphSAGE-based node representations)
+- Anomaly detection (Isolation Forest + LOF ensemble)
+- Pattern analysis (association rules, metric prediction)
+- Link prediction (hidden food-health relationships)
+- Node classification (nutrition, activity, health status)
+
+Author: deokhwajeong
+Version: 0.2.0
+"""
+
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from networkx.readwrite import json_graph
 import joblib
 from pathlib import Path
+from datetime import datetime
 
 from .app.graph_builder import build_example_graph
 from .app.synthetic_data import build_single_child_household
@@ -15,14 +29,18 @@ from .app.anomaly_detection import HealthAnomalyDetector, PatternCorrelationAnal
 from .app.pattern_analysis import HealthMetricPredictor, AssociationRuleAnalyzer
 from .app.link_prediction import HealthLinkPredictor
 from .app.node_classifier import FoodNutritionClassifier, ActivityIntensityClassifier, HealthStatusClassifier
+from .app.logger import api_logger, ml_logger
 
 
 app = FastAPI(
     title="Household Health Graph API with ML",
     version="0.2.0",
+    description="Graph-based health analysis with ML-powered insights for households",
+    contact={"name": "deokhwajeong", "url": "https://github.com/deokhwajeong"},
+    license_info={"name": "MIT"},
 )
 
-# CORS 설정
+# CORS configuration for cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,142 +53,252 @@ app.add_middleware(
 MODEL_DIR = Path(__file__).parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
 
+api_logger.info("FastAPI application initialized", version="0.2.0", model_dir=str(MODEL_DIR))
 
 # ---------------------------------------------------------
 # Root / Health
 # ---------------------------------------------------------
 
-@app.get("/")
+@app.get("/", tags=["System"])
 def root():
+    """Redirect to API documentation."""
     return RedirectResponse(url="/docs", status_code=307)
 
 
-@app.get("/health")
+@app.get("/health", tags=["System"])
 def health():
-    return {"ok": True}
+    """Health check endpoint."""
+    api_logger.info("Health check requested")
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "0.2.0"
+    }
 
 
-# ---------------------------------------------------------
-# JSON Debug Endpoints
-# ---------------------------------------------------------
+@app.get("/ml/debug/graph-stats", tags=["Debug"])
+def get_graph_stats(days: int = 60):
+    """Get comprehensive graph statistics."""
+    try:
+        G = build_single_child_household(num_days=days)
+        
+        node_types = {}
+        for node in G.nodes():
+            node_type = G.nodes[node].get("type", "unknown")
+            node_types[node_type] = node_types.get(node_type, 0) + 1
+        
+        avg_degree = sum(dict(G.degree()).values()) / len(G.nodes()) if len(G.nodes()) > 0 else 0
+        
+        stats = {
+            "total_nodes": len(G.nodes()),
+            "total_edges": len(G.edges()),
+            "node_types": node_types,
+            "avg_degree": avg_degree,
+            "days": days,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        api_logger.info("Graph stats requested", days=days, nodes=len(G.nodes()), edges=len(G.edges()))
+        return stats
+    except Exception as e:
+        api_logger.error("Error getting graph stats", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/debug/example-graph")
+
+@app.get("/debug/example-graph", tags=["Debug"])
 def debug_example_graph():
-    G = build_example_graph()
-    return json_graph.node_link_data(G)
+    """Get example graph as JSON (node-link format)."""
+    try:
+        G = build_example_graph()
+        result = json_graph.node_link_data(G)
+        api_logger.info("Example graph served", nodes=len(G.nodes()), edges=len(G.edges()))
+        return result
+    except Exception as e:
+        api_logger.error("Error generating example graph", exc=e)
+        raise HTTPException(status_code=500, detail="Failed to generate example graph")
 
 
-@app.get("/debug/synthetic-graph")
+@app.get("/debug/synthetic-graph", tags=["Debug"])
 def debug_synthetic_graph(days: int = 60):
-    G = build_single_child_household(num_days=days)
-    return json_graph.node_link_data(G)
+    """Get synthetic household graph as JSON (node-link format)."""
+    try:
+        if days < 1 or days > 365:
+            raise ValueError("days must be between 1 and 365")
+        
+        G = build_single_child_household(num_days=days)
+        result = json_graph.node_link_data(G)
+        api_logger.info("Synthetic graph served", days=days, nodes=len(G.nodes()), edges=len(G.edges()))
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        api_logger.error("Error generating synthetic graph", exc=e, days=days)
+        raise HTTPException(status_code=500, detail="Failed to generate synthetic graph")
 
 
 # ---------------------------------------------------------
 # SVG Debug Endpoints
 # ---------------------------------------------------------
 
-@app.get("/debug/example-graph/svg")
+@app.get("/debug/example-graph/svg", tags=["Debug"])
 def debug_example_graph_svg():
-    G = build_example_graph()
-    svg_bytes = graph_to_svg(G)
+    """Get example graph as SVG visualization."""
+    try:
+        G = build_example_graph()
+        svg_bytes = graph_to_svg(G)
 
-    return Response(
-        content=svg_bytes,
-        media_type="image/svg+xml",
-        headers={
-            "Content-Disposition": "inline; filename=example-graph.svg",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+        return Response(
+            content=svg_bytes,
+            media_type="image/svg+xml",
+            headers={
+                "Content-Disposition": "inline; filename=example-graph.svg",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except Exception as e:
+        api_logger.error("Error generating SVG", exc=e)
+        raise HTTPException(status_code=500, detail="Failed to generate SVG")
 
 
-@app.get("/debug/synthetic-graph/svg")
+@app.get("/debug/synthetic-graph/svg", tags=["Debug"])
 def debug_synthetic_graph_svg(days: int = 60):
-    G = build_single_child_household(num_days=days)
-    svg_bytes = graph_to_svg(G)
+    """Get synthetic graph as SVG visualization."""
+    try:
+        if days < 1 or days > 365:
+            raise ValueError("days must be between 1 and 365")
+        
+        G = build_single_child_household(num_days=days)
+        svg_bytes = graph_to_svg(G)
 
-    return Response(
-        content=svg_bytes,
-        media_type="image/svg+xml",
-        headers={
-            "Content-Disposition": "inline; filename=synthetic-graph.svg",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+        return Response(
+            content=svg_bytes,
+            media_type="image/svg+xml",
+            headers={
+                "Content-Disposition": "inline; filename=synthetic-graph.svg",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        api_logger.error("Error generating SVG", exc=e, days=days)
+        raise HTTPException(status_code=500, detail="Failed to generate SVG")
 
 
 # ---------------------------------------------------------
 # Optional HTML Wrapper
 # ---------------------------------------------------------
 
-@app.get("/debug/synthetic-graph/html")
+@app.get("/debug/synthetic-graph/html", tags=["Debug"])
 def debug_synthetic_graph_html(days: int = 60):
-    G = build_single_child_household(num_days=days)
-    svg_bytes = graph_to_svg(G)
-    svg = svg_bytes.decode("utf-8")
+    """Get synthetic graph as interactive HTML visualization."""
+    try:
+        if days < 1 or days > 365:
+            raise ValueError("days must be between 1 and 365")
+        
+        G = build_single_child_household(num_days=days)
+        svg_bytes = graph_to_svg(G)
+        svg = svg_bytes.decode("utf-8")
 
-    html = f"""
-    <html>
-      <head><title>Synthetic Graph Debug</title></head>
-      <body>
-        <h2>Synthetic Graph (days={days})</h2>
-        {svg}
-      </body>
-    </html>
-    """
+        html = f"""
+        <html>
+          <head>
+            <title>Household Health Graph - Synthetic Data (days={days})</title>
+            <style>
+              body {{ font-family: sans-serif; margin: 20px; }}
+              h2 {{ color: #333; }}
+              svg {{ border: 1px solid #ccc; margin-top: 20px; }}
+              .stats {{ background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 20px 0; }}
+            </style>
+          </head>
+          <body>
+            <h2>Household Health Graph Visualization</h2>
+            <div class="stats">
+              <strong>Statistics:</strong> {len(G.nodes())} nodes, {len(G.edges())} edges, {days} days
+            </div>
+            {svg}
+          </body>
+        </html>
+        """
 
-    return Response(content=html, media_type="text/html")
+        return Response(content=html, media_type="text/html")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        api_logger.error("Error generating HTML", exc=e, days=days)
+        raise HTTPException(status_code=500, detail="Failed to generate HTML")
 
 
 # ---------------------------------------------------------
 # ML Endpoints: Graph Embeddings
 # ---------------------------------------------------------
 
-@app.post("/ml/embeddings/train")
+@app.post("/ml/embeddings/train", tags=["Embeddings"])
 def train_embeddings(days: int = 60):
     """Train graph embeddings using GraphSAGE."""
-    G = build_single_child_household(num_days=days)
-    
-    sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
-    embeddings = sage.fit_embeddings(G)
-    
-    # Save model
-    joblib.dump(sage, MODEL_DIR / "graph_sage.pkl")
-    
-    return {
-        "status": "success",
-        "num_nodes": len(G.nodes()),
-        "num_embeddings": len(embeddings),
-        "embedding_dim": 16,
-        "message": "GraphSAGE model trained and saved"
-    }
+    try:
+        if days < 1 or days > 365:
+            raise ValueError("days must be between 1 and 365")
+        
+        ml_logger.info("Training GraphSAGE embeddings", days=days)
+        G = build_single_child_household(num_days=days)
+        
+        sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
+        embeddings = sage.fit_embeddings(G)
+        
+        # Save model
+        joblib.dump(sage, MODEL_DIR / "graph_sage.pkl")
+        
+        ml_logger.info("GraphSAGE training complete", nodes=len(G.nodes()), embeddings=len(embeddings))
+        
+        return {
+            "status": "success",
+            "num_nodes": len(G.nodes()),
+            "num_embeddings": len(embeddings),
+            "embedding_dim": 16,
+            "message": "GraphSAGE model trained and saved"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        ml_logger.error("Error training embeddings", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/ml/embeddings/daily/{person_id}/{date}")
+@app.get("/ml/embeddings/daily/{person_id}/{date}", tags=["Embeddings"])
 def get_daily_embedding(person_id: str, date: str, days: int = 60):
     """Get daily embedding for a specific person and date."""
-    G = build_single_child_household(num_days=days)
-    
-    # Load or train model
-    model_path = MODEL_DIR / "graph_sage.pkl"
-    if model_path.exists():
-        sage = joblib.load(model_path)
-    else:
-        sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
-        sage.fit_embeddings(G)
-    
-    embedding = sage.get_daily_embedding(G, person_id, date)
-    
-    if embedding is None:
-        return {"error": f"No data for {person_id} on {date}"}
-    
-    return {
-        "person_id": person_id,
-        "date": date,
-        "embedding": embedding.tolist(),
-        "embedding_dim": len(embedding)
-    }
+    try:
+        if not person_id or not date:
+            raise ValueError("person_id and date are required")
+        
+        G = build_single_child_household(num_days=days)
+        
+        # Load or train model
+        model_path = MODEL_DIR / "graph_sage.pkl"
+        if model_path.exists():
+            sage = joblib.load(model_path)
+        else:
+            sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
+            sage.fit_embeddings(G)
+        
+        embedding = sage.get_daily_embedding(G, person_id, date)
+        
+        if embedding is None:
+            ml_logger.warning("No embedding found", person_id=person_id, date=date)
+            raise HTTPException(status_code=404, detail=f"No data for {person_id} on {date}")
+        
+        return {
+            "person_id": person_id,
+            "date": date,
+            "embedding": embedding.tolist(),
+            "embedding_dim": len(embedding)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        ml_logger.error("Error getting embedding", exc=e, person_id=person_id, date=date)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ---------------------------------------------------------
