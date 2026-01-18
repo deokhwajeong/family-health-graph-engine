@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+    
+    - name: Run tests
+      run: |
+        python -m py_compile backend/main.py
+        python -m py_compile backend/app/*.py
+        echo "✓ All modules compiled successfully"
+    
+    - name: Generate graph stats
+      run: |
+        python -c "
+        from backend.app.synthetic_data import build_single_child_household
+        G = build_single_child_household(num_days=60)
+        print(f'Graph Statistics:')
+        print(f'  Nodes: {len(G.nodes())}')
+        print(f'  Edges: {len(G.edges())}')
+        
+        node_types = {}
+        for n in G.nodes():
+            t = G.nodes[n].get('type', 'unknown')
+            node_types[t] = node_types.get(t, 0) + 1
+        
+        print(f'  Node Types:')
+        for t, c in sorted(node_types.items()):
+            print(f'    {t}: {c}')
+        " > RELEASE_STATS.txt
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          RELEASE_STATS.txt
+          ML_IMPLEMENTATION.md
+          IMPLEMENTATION_COMPLETE.md
+        body: |
+          ## Family Health Graph Engine Release ${{ github.ref_name }}
+          
+          ### 🎉 Features
+          
+          - **Graph Embedding**: GraphSAGE-based daily health pattern representation
+          - **Anomaly Detection**: Isolation Forest + LOF for health pattern anomalies
+          - **Metric Prediction**: Linear regression for next-day health metrics
+          - **Link Prediction**: Discover hidden food-health relationships
+          - **Node Classification**: Food nutrition, activity intensity, daily status
+          
+          ### 📊 Synthetic Data
+          
+          - 60 days of household health data
+          - 546 nodes, 1078 edges
+          - Multiple food types, activities, sleep sessions, and metrics
+          
+          ### 🚀 Quick Start
+          
+          ```bash
+          # Install dependencies
+          pip install -r backend/requirements.txt
+          
+          # Train all ML models
+          python backend/train_models.py
+          
+          # Start API server
+          cd backend
+          uvicorn main:app --reload
+          ```
+          
+          ### 📚 Documentation
+          
+          - See `ML_IMPLEMENTATION.md` for detailed implementation guide
+          - See `IMPLEMENTATION_COMPLETE.md` for completion summary
+          
+          ### 🔗 API Endpoints
+          
+          - GraphSAGE: `/ml/embeddings/daily/{person_id}/{date}`
+          - Anomaly Detection: `/ml/anomalies/detect/{person_id}/{date}`
+          - Metric Prediction: `/ml/prediction/metrics/{person_id}/{date}`
+          - Daily Insights: `/ml/insights/daily/{person_id}/{date}`
+          - Person Summary: `/ml/summary/{person_id}`
+        generate_release_notes: true
+        draft: false
+        prerelease: false
