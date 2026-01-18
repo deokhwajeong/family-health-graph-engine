@@ -3,3 +3,18 @@ uvicorn[standard]
 python-dotenv
 networkx
 pydantic
+
+# ML & Scientific Computing
+numpy
+scipy
+scikit-learn
+pandas
+
+# Graph Neural Networks
+torch>=2.0.0
+torch-geometric>=2.3.0
+
+# Visualization & Utils
+matplotlib
+seaborn
+joblib
