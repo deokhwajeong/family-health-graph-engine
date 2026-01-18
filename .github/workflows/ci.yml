@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+    
+    - name: Lint with Python compile
+      run: |
+        python -m py_compile backend/main.py
+        python -m py_compile backend/app/*.py
+    
+    - name: Check imports
+      run: |
+        python -c "from backend.app.graph_builder import build_example_graph; print('✓ graph_builder')"
+        python -c "from backend.app.synthetic_data import build_single_child_household; print('✓ synthetic_data')"
+        python -c "from backend.app.graph_embeddings import SimpleGraphSAGE; print('✓ graph_embeddings')"
+        python -c "from backend.app.anomaly_detection import HealthAnomalyDetector; print('✓ anomaly_detection')"
+        python -c "from backend.app.pattern_analysis import HealthMetricPredictor; print('✓ pattern_analysis')"
+        python -c "from backend.app.link_prediction import HealthLinkPredictor; print('✓ link_prediction')"
+        python -c "from backend.app.node_classifier import FoodNutritionClassifier; print('✓ node_classifier')"
+    
+    - name: Test synthetic data generation
+      run: |
+        python -c "
+        from backend.app.synthetic_data import build_single_child_household
+        G = build_single_child_household(num_days=7)
+        assert len(G.nodes()) > 0, 'Graph should have nodes'
+        assert len(G.edges()) > 0, 'Graph should have edges'
+        print(f'✓ Generated graph: {len(G.nodes())} nodes, {len(G.edges())} edges')
+        "
+    
+    - name: Test feature extraction
+      run: |
+        python -c "
+        from backend.app.synthetic_data import build_single_child_household
+        from backend.app.graph_embeddings import extract_day_features
+        G = build_single_child_household(num_days=7, start_date='2024-11-20')
+        features = extract_day_features(G, 'yooni', '2024-11-20')
+        assert len(features) > 0, 'Should extract features'
+        print(f'✓ Extracted {len(features)} features')
+        "
+    
+    - name: Test GraphSAGE embedding
+      run: |
+        python -c "
+        from backend.app.synthetic_data import build_single_child_household
+        from backend.app.graph_embeddings import SimpleGraphSAGE
+        G = build_single_child_household(num_days=7)
+        sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
+        embeddings = sage.fit_embeddings(G)
+        assert len(embeddings) > 0, 'Should generate embeddings'
+        print(f'✓ Generated {len(embeddings)} embeddings')
+        "
