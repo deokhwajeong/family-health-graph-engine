@@ -86,44 +86,135 @@ The engine serves insights to:
 
 ## 5. Status
 
-- [x] Basic nutrition analysis API (FastAPI)  
-- [x] Simple demo UI (fiber scoring)  
-- [ ] Graph schema  
-- [ ] Synthetic household data generator  
-- [ ] Graph engine + embeddings  
-- [ ] Insight APIs  
-- [ ] Web dashboard  
-- [ ] TV layout  
-- [ ] Final polish + slide-ready visuals  
+### Backend — FastAPI + ML Engine
+- [x] Graph schema and data model  
+- [x] Synthetic household data generator (60-day realistic data)  
+- [x] Graph builder (NetworkX DiGraph)  
+- [x] **GraphSAGE embeddings** (16-dim, node type encoding)  
+- [x] **Anomaly detection** (Isolation Forest + LOF)  
+- [x] **Pattern analysis & prediction** (next-day health metrics)  
+- [x] **Link prediction** (food-health relationships)  
+- [x] **Node classification** (nutrition, activity intensity, health status)  
+- [x] 50+ ML API endpoints  
+- [x] Model persistence (joblib pkl files)  
+- [x] Training pipeline  
+
+### DevOps & CI/CD
+- [x] GitHub Actions CI workflow (Python 3.10/3.11/3.12 matrix)  
+- [x] GitHub Actions release workflow (v*.*.* tag triggers)  
+- [x] Automated testing on push/PR  
+- [x] v0.2.0 release published  
+
+### Frontend & Dashboard
+- [ ] Web dashboard (Next.js)  
+- [ ] Household overview visualization  
+- [ ] Member timelines  
+- [ ] TV-style large-screen mode  
+
+### Documentation
+- [x] ML_IMPLEMENTATION.md (algorithm details, usage examples)  
+- [x] IMPLEMENTATION_COMPLETE.md (summary)  
 
 ---
 
-## 6. Roadmap
+## 6. API Endpoints Summary
 
-### Week 1 — Modeling
-Graph schema, synthetic data, ingestion → graph builder
+### Graph & Embeddings
+- `GET /ml/embeddings/daily/{person_id}/{date}` - Daily node embeddings
+- `GET /ml/embeddings/person/{person_id}` - Person node embedding
+- `GET /ml/features/daily/{person_id}/{date}` - Extracted features (10+ metrics)
 
-### Week 2 — Graph Engine
-Graph metrics → embeddings → insight rules → APIs
+### Anomaly Detection
+- `POST /ml/anomalies/detect` - Detect unusual patterns
+- `GET /ml/anomalies/correlations/{person_id}` - Pattern correlations
 
-### Week 3 — Dashboard
-Household view → member view → interactions
+### Prediction & Analysis
+- `POST /ml/prediction/next-day` - Predict energy, focus, mood
+- `POST /ml/patterns/rules` - Discover health rules (food → energy, etc.)
 
-### Week 4 — Polish
-TV UI, documentation, diagrams, and screenshots
+### Link Prediction
+- `POST /ml/links/predict` - Suggest food-health relationships
+- `POST /ml/links/explain/{node_id}/{target_id}` - Link explanation
+
+### Classification
+- `POST /ml/classify/food` - Food nutrition classification
+- `POST /ml/classify/activity` - Activity intensity classification
+- `POST /ml/classify/health` - Daily health status classification
+
+### Insights
+- `GET /ml/insights/daily/{person_id}/{date}` - Complete daily analysis
+- `GET /ml/summary/{person_id}` - Person-level health summary
 
 ---
 
-## 7. Tech Stack
+## 7. Roadmap (v0.3+)
 
-Python, FastAPI  
-NetworkX, PyTorch Geometric (optional)  
-Next.js, TypeScript  
-GitHub Codespaces
+### Phase 1 — Dashboard
+Household view → member view → interactive visualizations
+
+### Phase 2 — Advanced ML
+Temporal graph networks → multi-task learning → causal inference
+
+### Phase 3 — Smart Integration
+TV UI → mobile app → smart device sync
+
+### Phase 4 — Production
+Data privacy → auth & access control → cloud deployment
 
 ---
 
-## 8. Background Integration
+## 8. Tech Stack
+
+**Backend:**
+- FastAPI 0.2.0 (REST API)
+- NetworkX (Graph construction & traversal)
+- NumPy, SciPy (Numerical computing)
+- Scikit-Learn (ML algorithms: Isolation Forest, LOF, LogisticRegression, RandomForest)
+- PyTorch, PyTorch Geometric (Optional: advanced GNN)
+- JobLib (Model persistence)
+- Pandas, Matplotlib, Seaborn (Data analysis)
+
+**Frontend:**
+- Next.js, TypeScript (Coming soon)
+
+**DevOps:**
+- GitHub Actions (CI/CD)
+- Docker (Optional)
+- GitHub Codespaces
+
+---
+
+## 9. Quick Start
+
+### Setup
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Train Models
+```bash
+python train_models.py
+```
+
+### Run Server
+```bash
+python main.py
+# Server runs at http://localhost:8000
+# Docs at http://localhost:8000/docs
+```
+
+### Test API
+```bash
+curl http://localhost:8000/ml/debug/graph-stats
+curl http://localhost:8000/ml/insights/daily/yooni/2025-12-06
+```
+
+---
+
+## 10. Background Integration
 
 This project reflects the full arc of my trajectory:
 
