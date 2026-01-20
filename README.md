@@ -1,7 +1,3 @@
-echo "- Jan 17: API stabilization and rebase cleanup" >> README.md
-git add README.md
-git commit -m "Chore: daily progress note"
-git push
 
 
 # Household Health Graph & Family Dashboard
