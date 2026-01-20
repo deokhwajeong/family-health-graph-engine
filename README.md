@@ -45,7 +45,49 @@ The engine serves insights to:
 
 ---
 
-## 3. Target Users
+## 3. Demo & Screenshots
+
+### System Architecture
+
+The ML engine combines graph structure with multiple analytical models:
+
+![ML Architecture](docs/images/ml_architecture.png)
+
+### Graph Structure Visualization
+
+The health graph connects people, meals, foods, activities, sleep, and metrics:
+
+![Graph Relationships](docs/images/graph_relationships.png)
+
+*Example: How daily health events are interconnected in the graph structure*
+
+### Graph Network Overview
+
+Complete household health graph with all nodes and relationships:
+
+![Graph Network](docs/images/graph_network_viz.png)
+
+### Daily Health Metrics
+
+Track energy, focus, and mood patterns over time:
+
+![Daily Metrics Timeline](docs/images/daily_metrics_timeline.png)
+
+### API Response Example
+
+Get comprehensive daily insights through RESTful APIs:
+
+![API Example](docs/images/api_example.png)
+
+### Implementation Status
+
+Current backend features and completion progress:
+
+![Feature Progress](docs/images/feature_progress.png)
+
+---
+
+## 4. Target Users
 
 - Families seeking patterns without micromanaging calories  
 - Reviewers evaluating:
@@ -56,7 +98,7 @@ The engine serves insights to:
 
 ---
 
-## 4. Architecture (v1)
+## 5. Architecture (v1)
 
 ### **Backend — FastAPI**
 - Event ingestion (meals, sleep, activities)  
@@ -80,7 +122,7 @@ The engine serves insights to:
 
 ---
 
-## 5. Status
+## 6. Status
 
 ### Backend — FastAPI + ML Engine
 - [x] Graph schema and data model  
@@ -113,7 +155,7 @@ The engine serves insights to:
 
 ---
 
-## 6. API Endpoints Summary
+## 7. API Endpoints Summary
 
 ### Graph & Embeddings
 - `GET /ml/embeddings/daily/{person_id}/{date}` - Daily node embeddings
@@ -143,7 +185,7 @@ The engine serves insights to:
 
 ---
 
-## 7. Roadmap (v0.3+)
+## 8. Roadmap (v0.3+)
 
 ### Phase 1 — Dashboard
 Household view → member view → interactive visualizations
@@ -159,7 +201,7 @@ Data privacy → auth & access control → cloud deployment
 
 ---
 
-## 8. Tech Stack
+## 9. Tech Stack
 
 **Backend:**
 - FastAPI 0.2.0 (REST API)
@@ -180,7 +222,7 @@ Data privacy → auth & access control → cloud deployment
 
 ---
 
-## 9. Quick Start
+## 10. Quick Start
 
 ### Setup
 ```bash
@@ -210,7 +252,7 @@ curl http://localhost:8000/ml/insights/daily/yooni/2025-12-06
 
 ---
 
-## 10. Background Integration
+## 11. Background Integration
 
 This project reflects the full arc of my trajectory:
 
