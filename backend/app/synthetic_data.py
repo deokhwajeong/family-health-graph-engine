@@ -184,7 +184,7 @@ def build_single_child_household(
     start_date: str = "2024-11-20",
 ) -> nx.DiGraph:
     """
-    Build a synthetic graph for one household and one child (Mia)
+    Build a synthetic graph for one household and one child (Leo)
     over `num_days` starting from `start_date`.
     
     Includes realistic variation in meals, sleep, activities, and metrics
@@ -197,10 +197,10 @@ def build_single_child_household(
     gb = GraphBuilder()
 
     household_id = "household:demo-family"
-    person_id = "person:mia"
+    person_id = "person:leo"
 
     gb.add_household(household_id, name="Demo family", timezone="America/Los_Angeles")
-    gb.add_person(person_id, household_id=household_id, name="Mia", role="child")
+    gb.add_person(person_id, household_id=household_id, name="Leo", role="child", age=8, emoji="👦")
 
     # prepare food catalog
     _ensure_food_catalog(gb)
@@ -232,7 +232,7 @@ def build_single_child_household(
 
     for offset in range(num_days):
         d = start + timedelta(days=offset)
-        day_id = f"day:mia:{d.isoformat()}"
+        day_id = f"day:leo:{d.isoformat()}"
 
         is_weekend = d.weekday() >= 5
         gb.add_day(
@@ -246,9 +246,9 @@ def build_single_child_household(
         )
 
         # === MEALS ===
-        breakfast_id = f"meal:mia:{d.isoformat()}:breakfast"
-        lunch_id = f"meal:mia:{d.isoformat()}:lunch"
-        dinner_id = f"meal:mia:{d.isoformat()}:dinner"
+        breakfast_id = f"meal:leo:{d.isoformat()}:breakfast"
+        lunch_id = f"meal:leo:{d.isoformat()}:lunch"
+        dinner_id = f"meal:leo:{d.isoformat()}:dinner"
 
         gb.add_meal(
             breakfast_id,
@@ -295,7 +295,7 @@ def build_single_child_household(
         duration = max(6, min(11, duration))  # clamp [6, 11]
         quality = max(50, min(100, quality))  # clamp [50, 100]
 
-        sleep_id = f"sleep:mia:{d.isoformat()}"
+        sleep_id = f"sleep:leo:{d.isoformat()}"
         gb.add_sleep(
             sleep_id=sleep_id,
             person_id=person_id,
@@ -309,7 +309,7 @@ def build_single_child_household(
 
         # === ACTIVITIES ===
         if d.weekday() in (1, 3):  # Tue, Thu
-            act_id = f"activity:mia:{d.isoformat()}:fencing"
+            act_id = f"activity:leo:{d.isoformat()}:fencing"
             gb.add_activity(
                 activity_id=act_id,
                 person_id=person_id,
@@ -328,7 +328,7 @@ def build_single_child_household(
                 ("park play", 60, "high", 300),
             ]
             name, duration, intensity, cal = random.choice(activities)
-            act_id = f"activity:mia:{d.isoformat()}:{name.replace(' ', '-')}"
+            act_id = f"activity:leo:{d.isoformat()}:{name.replace(' ', '-')}"
             gb.add_activity(
                 activity_id=act_id,
                 person_id=person_id,
@@ -343,7 +343,7 @@ def build_single_child_household(
         else:
             # school days: light activity or nothing
             if random.random() > 0.4:
-                act_id = f"activity:mia:{d.isoformat()}:walk"
+                act_id = f"activity:leo:{d.isoformat()}:walk"
                 gb.add_activity(
                     activity_id=act_id,
                     person_id=person_id,
@@ -371,7 +371,7 @@ def build_single_child_household(
         mood = random.gauss(75, 15)
         mood = max(0, min(100, mood))
 
-        metric_id_energy = f"metric:mia:{d.isoformat()}:energy"
+        metric_id_energy = f"metric:leo:{d.isoformat()}:energy"
         gb.add_metric(
             metric_id=metric_id_energy,
             person_id=person_id,
@@ -381,7 +381,7 @@ def build_single_child_household(
             timestamp=f"{d.isoformat()}T09:00:00Z",
         )
 
-        metric_id_focus = f"metric:mia:{d.isoformat()}:focus"
+        metric_id_focus = f"metric:leo:{d.isoformat()}:focus"
         gb.add_metric(
             metric_id=metric_id_focus,
             person_id=person_id,
@@ -391,7 +391,7 @@ def build_single_child_household(
             timestamp=f"{d.isoformat()}T14:00:00Z",
         )
 
-        metric_id_mood = f"metric:mia:{d.isoformat()}:mood"
+        metric_id_mood = f"metric:leo:{d.isoformat()}:mood"
         gb.add_metric(
             metric_id=metric_id_mood,
             person_id=person_id,

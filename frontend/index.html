@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Health Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="static/css/styles.css">
+</head>
+<body>
+    <!-- Dark Mode Toggle -->
+    <button id="darkModeToggle" class="dark-mode-toggle" aria-label="Toggle dark mode">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Mobile Menu Toggle -->
+    <button id="mobileMenuToggle" class="mobile-menu-toggle" aria-label="Toggle menu">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="logo">
+            <h2>🏥 Family Health</h2>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-tab="dashboard">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </li>
+            <li class="nav-item" data-tab="meals">
+                <i class="fas fa-utensils"></i>
+                <span>Meals</span>
+            </li>
+            <li class="nav-item" data-tab="sleep">
+                <i class="fas fa-bed"></i>
+                <span>Sleep</span>
+            </li>
+            <li class="nav-item" data-tab="activity">
+                <i class="fas fa-running"></i>
+                <span>Activity</span>
+            </li>
+            <li class="nav-item" data-tab="graph">
+                <i class="fas fa-project-diagram"></i>
+                <span>Graph</span>
+            </li>
+            <li class="nav-item" data-tab="apple-health">
+                <i class="fab fa-apple"></i>
+                <span>Apple Health</span>
+            </li>
+            <li class="nav-item" data-tab="shortcuts">
+                <i class="fas fa-mobile-alt"></i>
+                <span>iOS Shortcuts</span>
+            </li>
+            <li class="nav-item" data-tab="settings">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
+            <header class="page-header">
+                <h1>Dashboard</h1>
+                <p class="subtitle">Your family's health overview</p>
+            </header>
+
+            <!-- Today Overview -->
+            <section class="today-overview">
+                <div class="card stat-card">
+                    <div class="stat-icon meals-icon">
+                        <i class="fas fa-utensils"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>Today's Meals</h3>
+                        <div class="stat-value" id="today-meals">3</div>
+                        <div class="stat-change positive">
+                            <i class="fas fa-arrow-up"></i> <span id="meals-change">+2 vs avg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="stat-icon sleep-icon">
+                        <i class="fas fa-bed"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>Sleep Duration</h3>
+                        <div class="stat-value" id="today-sleep">7.5h</div>
+                        <div class="stat-change positive">
+                            <i class="fas fa-arrow-up"></i> <span id="sleep-change">+0.5h</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="stat-icon activity-icon">
+                        <i class="fas fa-running"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>Activities</h3>
+                        <div class="stat-value" id="today-activities">2</div>
+                        <div class="stat-change positive">
+                            <i class="fas fa-arrow-up"></i> <span id="activities-change">Same as avg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="stat-icon calories-icon">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>Total Calories</h3>
+                        <div class="stat-value" id="today-calories">1800</div>
+                        <div class="stat-change positive">
+                            <i class="fas fa-arrow-up"></i> <span id="calories-change">+200 kcal</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Weekly Trends Chart -->
+            <section class="weekly-trends">
+                <div class="card">
+                    <h2>Weekly Trends</h2>
+                    <canvas id="weeklyTrendsChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Family Overview -->
+            <section class="family-overview">
+                <h2>Family Activity Timeline</h2>
+                <div class="family-members">
+                    <div class="card member-card">
+                        <div class="member-header">
+                            <span class="member-avatar">👦</span>
+                            <div class="member-info">
+                                <h3>Leo</h3>
+                                <span class="member-role">Child</span>
+                            </div>
+                        </div>
+                        <div class="member-activity">
+                            <p class="last-activity" id="leo-last-activity">Last meal: Lunch at 12:30 PM</p>
+                        </div>
+                    </div>
+
+                    <div class="card member-card">
+                        <div class="member-header">
+                            <span class="member-avatar">👩</span>
+                            <div class="member-info">
+                                <h3>Jordan</h3>
+                                <span class="member-role">Parent</span>
+                            </div>
+                        </div>
+                        <div class="member-activity">
+                            <p class="last-activity" id="jordan-last-activity">Last activity: Morning walk at 7:00 AM</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Apple Health Import Tab -->
+        <div id="apple-health-tab" class="tab-content">
+            <header class="page-header">
+                <h1>🍎 Apple Health Import</h1>
+                <p class="subtitle">Import your Apple Health data</p>
+            </header>
+
+            <div class="card import-container">
+                <div class="import-section">
+                    <h3>Select Person</h3>
+                    <select id="import-person" class="filter-select">
+                        <option value="Leo">Leo 👦</option>
+                        <option value="Jordan">Jordan 👩</option>
+                    </select>
+                </div>
+
+                <div class="import-section">
+                    <h3>Upload Apple Health Export</h3>
+                    <div class="drop-zone" id="drop-zone">
+                        <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                        <p>Drag & drop your export.xml file here</p>
+                        <p class="or-text">or</p>
+                        <button class="btn btn-primary" id="file-select-btn">
+                            <i class="fas fa-folder-open"></i> Select File
+                        </button>
+                        <input type="file" id="file-input" accept=".xml" hidden>
+                    </div>
+                    <div class="file-info" id="file-info" style="display: none;">
+                        <i class="fas fa-file-medical"></i>
+                        <span id="file-name"></span>
+                        <span id="file-size"></span>
+                    </div>
+                </div>
+
+                <div class="import-section">
+                    <button class="btn btn-success btn-large" id="import-btn" disabled>
+                        <i class="fas fa-upload"></i> Import Data
+                    </button>
+                </div>
+
+                <div class="progress-container" id="progress-container" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p class="progress-text" id="progress-text">Uploading...</p>
+                </div>
+
+                <div class="import-results" id="import-results" style="display: none;">
+                    <h3>Import Summary</h3>
+                    <div class="results-grid" id="results-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- iOS Shortcuts Tab -->
+        <div id="shortcuts-tab" class="tab-content">
+            <header class="page-header">
+                <h1>⚙️ iOS Shortcuts Setup</h1>
+                <p class="subtitle">Configure real-time health data sync</p>
+            </header>
+
+            <div class="card">
+                <h3>API Endpoint</h3>
+                <div class="endpoint-url">
+                    <input type="text" id="base-url" value="http://localhost:8000" readonly>
+                    <button class="btn btn-secondary" id="copy-url-btn">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                </div>
+            </div>
+
+            <div class="shortcuts-grid">
+                <div class="card shortcut-card">
+                    <h3>🚶 Steps</h3>
+                    <p class="endpoint-path">POST /api/health/steps</p>
+                    <div class="shortcut-params">
+                        <p><strong>Parameters:</strong></p>
+                        <ul>
+                            <li>person_name: Leo or Jordan</li>
+                            <li>steps: Number of steps</li>
+                            <li>timestamp: ISO 8601 format</li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-primary" onclick="copyEndpoint('/api/health/steps')">
+                        <i class="fas fa-copy"></i> Copy Endpoint
+                    </button>
+                </div>
+
+                <div class="card shortcut-card">
+                    <h3>❤️ Heart Rate</h3>
+                    <p class="endpoint-path">POST /api/health/heart-rate</p>
+                    <div class="shortcut-params">
+                        <p><strong>Parameters:</strong></p>
+                        <ul>
+                            <li>person_name: Leo or Jordan</li>
+                            <li>bpm: Beats per minute</li>
+                            <li>timestamp: ISO 8601 format</li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-primary" onclick="copyEndpoint('/api/health/heart-rate')">
+                        <i class="fas fa-copy"></i> Copy Endpoint
+                    </button>
+                </div>
+
+                <div class="card shortcut-card">
+                    <h3>😴 Sleep</h3>
+                    <p class="endpoint-path">POST /api/health/sleep</p>
+                    <div class="shortcut-params">
+                        <p><strong>Parameters:</strong></p>
+                        <ul>
+                            <li>person_name: Leo or Jordan</li>
+                            <li>start_time: ISO 8601 format</li>
+                            <li>end_time: ISO 8601 format</li>
+                            <li>quality: good, fair, or poor</li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-primary" onclick="copyEndpoint('/api/health/sleep')">
+                        <i class="fas fa-copy"></i> Copy Endpoint
+                    </button>
+                </div>
+
+                <div class="card shortcut-card">
+                    <h3>🔥 Calories</h3>
+                    <p class="endpoint-path">POST /api/health/calories</p>
+                    <div class="shortcut-params">
+                        <p><strong>Parameters:</strong></p>
+                        <ul>
+                            <li>person_name: Leo or Jordan</li>
+                            <li>calories: Amount</li>
+                            <li>type: active or dietary</li>
+                            <li>timestamp: ISO 8601 format</li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-primary" onclick="copyEndpoint('/api/health/calories')">
+                        <i class="fas fa-copy"></i> Copy Endpoint
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📱 Setup Instructions</h3>
+                <ol class="setup-steps">
+                    <li>Open the Shortcuts app on your iPhone</li>
+                    <li>Tap the + button to create a new shortcut</li>
+                    <li>Add "Get Health Sample" action to retrieve data from Health app</li>
+                    <li>Add "Get Contents of URL" action</li>
+                    <li>Paste the endpoint URL from above</li>
+                    <li>Set Method to POST</li>
+                    <li>Add form data with the required parameters</li>
+                    <li>Save and test your shortcut</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+            <header class="page-header">
+                <h1>⚙️ Settings</h1>
+                <p class="subtitle">Manage your preferences</p>
+            </header>
+
+            <div class="card">
+                <h3>Appearance</h3>
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="dark-mode-setting">
+                        Enable Dark Mode
+                    </label>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>API Configuration</h3>
+                <div class="setting-item">
+                    <label>API Base URL</label>
+                    <input type="text" id="api-url-setting" class="filter-input" value="http://localhost:8000">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
+    <!-- Custom Scripts -->
+    <script src="static/js/app.js"></script>
+    <script src="static/js/dashboard.js"></script>
+    <script src="static/js/apple-health.js"></script>
+</body>
+</html>
