@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     # Model Settings
     model_save_interval: int = 100  # Save model every N predictions
     
+    # Ethics Settings
+    ethics_enabled: bool = True
+    data_retention_days: int = 365
+    minor_age_threshold: int = 18
+    pii_scan_on_startup: bool = False
+    consent_required_for_ml: bool = True
+    fairness_audit_interval: int = 30  # Days between scheduled audits
+    
     # Logging
     log_level: str = "INFO"
     log_to_file: bool = False

@@ -136,6 +136,7 @@ Current backend features and completion progress:
 - [x] 50+ ML API endpoints  
 - [x] Model persistence (joblib pkl files)  
 - [x] Training pipeline  
+- [x] **Ethics module** (privacy, consent, fairness, transparency, governance)
 
 ### DevOps & CI/CD
 - [x] GitHub Actions CI workflow (Python 3.10/3.11/3.12 matrix)  
@@ -182,6 +183,26 @@ Current backend features and completion progress:
 ### Insights
 - `GET /ml/insights/daily/{person_id}/{date}` - Complete daily analysis
 - `GET /ml/summary/{person_id}` - Person-level health summary
+
+### Ethics & Governance
+- `GET /ethics/audit` - Full ethics audit (PII + minors + retention + inventory)
+- `GET /ethics/privacy/scan` - PII detection scan
+- `POST /ethics/privacy/anonymize` - Graph anonymization
+- `POST /ethics/consent/grant` - Grant data usage consent
+- `POST /ethics/consent/withdraw` - Withdraw consent
+- `GET /ethics/consent/{person_id}` - Consent summary
+- `GET /ethics/consent/audit-trail` - Consent audit trail
+- `GET /ethics/minors/detect` - Detect minor-aged members
+- `POST /ethics/minors/setup-guardians` - Auto-setup guardian relationships
+- `GET /ethics/minors/evaluate/{person_id}` - Evaluate operation for minors
+- `POST /ethics/fairness/audit-anomalies` - Bias audit on anomaly scores
+- `GET /ethics/fairness/history` - Fairness audit history
+- `GET /ethics/transparency/model-card/{model_name}` - ML model card
+- `GET /ethics/transparency/compliance-report` - Ethics compliance report
+- `GET /ethics/transparency/decisions` - ML decision audit log
+- `GET /ethics/governance/retention` - Data retention check
+- `POST /ethics/governance/deletion-request` - Right to deletion (GDPR Art. 17)
+- `GET /ethics/governance/data-inventory` - Data inventory (GDPR Art. 30)
 
 ---
 
