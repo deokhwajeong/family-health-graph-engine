@@ -1058,7 +1058,7 @@ async def add_steps(
                 date=date,
                 weekday=dt.weekday(),
             )
-        except:
+        except Exception:
             pass
         
         # Add activity
@@ -1163,7 +1163,7 @@ async def add_sleep(
                 date=date,
                 weekday=start_dt.weekday(),
             )
-        except:
+        except Exception:
             pass
         
         # Add sleep
@@ -1227,7 +1227,7 @@ async def add_calories(
                 date=date,
                 weekday=dt.weekday(),
             )
-        except:
+        except Exception:
             pass
         
         if type.lower() == "active":

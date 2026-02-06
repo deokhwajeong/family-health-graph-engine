@@ -222,8 +222,8 @@ def add_health_data_to_graph(
                 date=date,
                 weekday=datetime.fromisoformat(date).weekday(),
             )
-        except:
-            pass  # Day might already exist
+        except Exception:
+            pass  # Day might already exist, which is fine
         
         gb.add_activity(
             activity_id=activity_id,
@@ -249,7 +249,7 @@ def add_health_data_to_graph(
                 date=date,
                 weekday=datetime.fromisoformat(date).weekday(),
             )
-        except:
+        except Exception:
             pass
         
         gb.add_activity(
@@ -296,7 +296,7 @@ def add_health_data_to_graph(
                 date=date,
                 weekday=start_dt.weekday(),
             )
-        except:
+        except Exception:
             pass
         
         gb.add_sleep(
