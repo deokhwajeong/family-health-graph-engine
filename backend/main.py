@@ -932,9 +932,17 @@ def get_demo_graph():
     global _demo_graph
     if _demo_graph is None:
         _demo_graph = GraphBuilder()
+        # Add household
+        household_id = "household:jeong-family"
+        _demo_graph.add_household(
+            household_id,
+            name="Jeong family",
+            timezone="America/Los_Angeles"
+        )
         # Add Sei and Deokhwa persons
         _demo_graph.add_person(
             person_id="sei",
+            household_id=household_id,
             name="Sei",
             age=8,
             emoji="👦",
@@ -942,6 +950,7 @@ def get_demo_graph():
         )
         _demo_graph.add_person(
             person_id="deokhwa",
+            household_id=household_id,
             name="Deokhwa",
             age=35,
             emoji="👩",
