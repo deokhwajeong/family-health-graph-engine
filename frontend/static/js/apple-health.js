@@ -57,9 +57,15 @@ function initializeAppleHealthImport() {
 }
 
 function handleFileSelect(file) {
-    // Validate file
+    // Validate file type
     if (!file.name.endsWith('.xml')) {
         app.showToast('Please select a valid XML file', 'error');
+        return;
+    }
+    
+    // Validate MIME type if available
+    if (file.type && file.type !== 'text/xml' && file.type !== 'application/xml' && file.type !== '') {
+        app.showToast('Invalid file type. Please select an XML file', 'error');
         return;
     }
     
