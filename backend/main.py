@@ -13,15 +13,16 @@ Author: deokhwajeong
 Version: 0.2.0
 """
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse, Response
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi.responses import RedirectResponse, Response, HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from networkx.readwrite import json_graph
 import joblib
 from pathlib import Path
 from datetime import datetime
 
-from .app.graph_builder import build_example_graph
+from .app.graph_builder import build_example_graph, GraphBuilder
 from .app.synthetic_data import build_single_child_household
 from .app.graph_viz import graph_to_svg
 from .app.graph_embeddings import SimpleGraphSAGE, extract_day_features
@@ -29,6 +30,7 @@ from .app.anomaly_detection import HealthAnomalyDetector, PatternCorrelationAnal
 from .app.pattern_analysis import HealthMetricPredictor, AssociationRuleAnalyzer
 from .app.link_prediction import HealthLinkPredictor
 from .app.node_classifier import FoodNutritionClassifier, ActivityIntensityClassifier, HealthStatusClassifier
+from .app.apple_health import AppleHealthParser, add_health_data_to_graph
 from .app.ethics import (
     EthicsEngine, DataPurpose, ConsentStatus,
     PrivacyGuard, ConsentManager, MinorProtectionGuard,
@@ -61,6 +63,14 @@ app.add_middleware(
 MODEL_DIR = Path(__file__).parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
 
+# Frontend directory
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+
+# Mount static files if frontend exists
+if FRONTEND_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
+    api_logger.info("Frontend static files mounted", frontend_dir=str(FRONTEND_DIR))
+
 # Ethics engine (singleton)
 ethics_engine = EthicsEngine(retention_days=365)
 
@@ -72,7 +82,11 @@ api_logger.info("FastAPI application initialized", version="0.2.0", model_dir=st
 
 @app.get("/", tags=["System"])
 def root():
-    """Redirect to API documentation."""
+    """Serve the frontend dashboard or redirect to API docs."""
+    # Check if frontend index.html exists
+    frontend_index = FRONTEND_DIR / "index.html"
+    if frontend_index.exists():
+        return FileResponse(str(frontend_index))
     return RedirectResponse(url="/docs", status_code=307)
 
 
@@ -904,4 +918,456 @@ def full_ethics_audit(days: int = 60):
     except Exception as e:
         api_logger.error("Full ethics audit failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------
+# Apple Health & iOS Shortcuts Integration
+# ---------------------------------------------------------
+
+# In-memory graph for demo purposes (in production, use a database)
+_demo_graph = None
+
+def get_demo_graph():
+    """Get or create demo graph."""
+    global _demo_graph
+    if _demo_graph is None:
+        _demo_graph = GraphBuilder()
+        # Add Sei and Deokhwa persons
+        _demo_graph.add_person(
+            person_id="sei",
+            name="Sei",
+            age=8,
+            emoji="👦",
+            role="child",
+        )
+        _demo_graph.add_person(
+            person_id="deokhwa",
+            name="Deokhwa",
+            age=35,
+            emoji="👩",
+            role="parent",
+        )
+    return _demo_graph
+
+
+@app.post("/api/health/import-xml", tags=["Apple Health"])
+async def import_apple_health_xml(
+    file: UploadFile = File(...),
+    person_name: str = Form(...)
+):
+    """
+    Import Apple Health export.xml file and add data to the graph.
+    
+    Args:
+        file: The export.xml file from Apple Health
+        person_name: Person to associate the data with (sei or deokhwa)
+    
+    Returns:
+        Import statistics and summary
+    """
+    try:
+        # Validate person name
+        person_id = person_name.lower()
+        if person_id not in ["sei", "deokhwa"]:
+            raise HTTPException(
+                status_code=400,
+                detail="person_name must be 'Sei' or 'Deokhwa'"
+            )
+        
+        # Read XML file
+        xml_content = await file.read()
+        
+        # Parse XML
+        api_logger.info("Parsing Apple Health XML", person=person_id, size=len(xml_content))
+        health_data = AppleHealthParser.parse_xml(xml_content)
+        
+        # Add to graph
+        gb = get_demo_graph()
+        stats = add_health_data_to_graph(gb, person_id, health_data)
+        
+        # Calculate summary statistics
+        daily_steps = AppleHealthParser.aggregate_daily_steps(health_data["steps"])
+        daily_hr = AppleHealthParser.calculate_average_heart_rate(health_data["heart_rate"])
+        
+        summary = {
+            "person_name": person_name,
+            "records_imported": {
+                "steps_days": stats["steps_days"],
+                "calories_days": stats["calories_days"],
+                "heart_rate_days": stats["heart_rate_days"],
+                "sleep_sessions": stats["sleep_sessions"],
+            },
+            "statistics": {
+                "total_steps": int(sum(daily_steps.values())) if daily_steps else 0,
+                "avg_steps_per_day": int(sum(daily_steps.values()) / len(daily_steps)) if daily_steps else 0,
+                "avg_heart_rate": int(sum(daily_hr.values()) / len(daily_hr)) if daily_hr else 0,
+                "total_sleep_sessions": stats["sleep_sessions"],
+            }
+        }
+        
+        api_logger.info("Apple Health import successful", person=person_id, stats=stats)
+        return summary
+        
+    except ValueError as e:
+        api_logger.error("XML parsing failed", exc=e)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        api_logger.error("Import failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/health/steps", tags=["iOS Shortcuts"])
+async def add_steps(
+    person_name: str = Form(...),
+    steps: int = Form(...),
+    timestamp: str = Form(...)
+):
+    """
+    Add step count data from iOS Shortcuts.
+    
+    Args:
+        person_name: Person name (Sei or Deokhwa)
+        steps: Number of steps
+        timestamp: ISO 8601 timestamp
+    """
+    try:
+        person_id = person_name.lower()
+        if person_id not in ["sei", "deokhwa"]:
+            raise HTTPException(status_code=400, detail="person_name must be 'Sei' or 'Deokhwa'")
+        
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        date = dt.date().isoformat()
+        
+        gb = get_demo_graph()
+        
+        # Ensure day exists
+        day_id = f"day:{person_id}:{date}"
+        try:
+            gb.add_day(
+                day_id=day_id,
+                person_id=person_id,
+                date=date,
+                weekday=dt.weekday(),
+            )
+        except:
+            pass
+        
+        # Add activity
+        activity_id = f"activity:{person_id}:{date}:steps:{dt.hour}"
+        gb.add_activity(
+            activity_id=activity_id,
+            person_id=person_id,
+            date=date,
+            name="Steps",
+            day_id=day_id,
+            category="walking",
+            steps=steps,
+        )
+        
+        api_logger.info("Steps added", person=person_id, steps=steps, date=date)
+        return {"status": "success", "person": person_name, "steps": steps, "date": date}
+        
+    except Exception as e:
+        api_logger.error("Add steps failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/health/heart-rate", tags=["iOS Shortcuts"])
+async def add_heart_rate(
+    person_name: str = Form(...),
+    bpm: int = Form(...),
+    timestamp: str = Form(...)
+):
+    """
+    Add heart rate data from iOS Shortcuts.
+    
+    Args:
+        person_name: Person name (Sei or Deokhwa)
+        bpm: Heart rate in beats per minute
+        timestamp: ISO 8601 timestamp
+    """
+    try:
+        person_id = person_name.lower()
+        if person_id not in ["sei", "deokhwa"]:
+            raise HTTPException(status_code=400, detail="person_name must be 'Sei' or 'Deokhwa'")
+        
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        
+        gb = get_demo_graph()
+        metric_id = f"metric:{person_id}:{timestamp}:heart_rate"
+        gb.add_metric(
+            metric_id=metric_id,
+            person_id=person_id,
+            metric_type="heart_rate",
+            value=float(bpm),
+            unit="bpm",
+            timestamp=timestamp,
+        )
+        
+        api_logger.info("Heart rate added", person=person_id, bpm=bpm)
+        return {"status": "success", "person": person_name, "bpm": bpm}
+        
+    except Exception as e:
+        api_logger.error("Add heart rate failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/health/sleep", tags=["iOS Shortcuts"])
+async def add_sleep(
+    person_name: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    quality: str = Form("good")
+):
+    """
+    Add sleep data from iOS Shortcuts.
+    
+    Args:
+        person_name: Person name (Sei or Deokhwa)
+        start_time: Sleep start time (ISO 8601)
+        end_time: Sleep end time (ISO 8601)
+        quality: Sleep quality (good, fair, poor)
+    """
+    try:
+        person_id = person_name.lower()
+        if person_id not in ["sei", "deokhwa"]:
+            raise HTTPException(status_code=400, detail="person_name must be 'Sei' or 'Deokhwa'")
+        
+        start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+        
+        date = start_dt.date().isoformat()
+        duration_hours = (end_dt - start_dt).total_seconds() / 3600
+        
+        # Map quality to score
+        quality_scores = {"good": 85, "fair": 70, "poor": 50}
+        quality_score = quality_scores.get(quality.lower(), 75)
+        
+        gb = get_demo_graph()
+        
+        # Ensure day exists
+        day_id = f"day:{person_id}:{date}"
+        try:
+            gb.add_day(
+                day_id=day_id,
+                person_id=person_id,
+                date=date,
+                weekday=start_dt.weekday(),
+            )
+        except:
+            pass
+        
+        # Add sleep
+        sleep_id = f"sleep:{person_id}:{date}"
+        gb.add_sleep(
+            sleep_id=sleep_id,
+            person_id=person_id,
+            date=date,
+            start_time=start_dt.time().isoformat(),
+            end_time=end_dt.time().isoformat(),
+            day_id=day_id,
+            duration_hours=duration_hours,
+            quality_score=quality_score,
+        )
+        
+        api_logger.info("Sleep added", person=person_id, duration=duration_hours, quality=quality)
+        return {
+            "status": "success",
+            "person": person_name,
+            "duration_hours": round(duration_hours, 2),
+            "quality": quality
+        }
+        
+    except Exception as e:
+        api_logger.error("Add sleep failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/health/calories", tags=["iOS Shortcuts"])
+async def add_calories(
+    person_name: str = Form(...),
+    calories: int = Form(...),
+    type: str = Form("active"),
+    timestamp: str = Form(...)
+):
+    """
+    Add calorie data from iOS Shortcuts.
+    
+    Args:
+        person_name: Person name (Sei or Deokhwa)
+        calories: Calorie amount
+        type: Type of calories (active or dietary)
+        timestamp: ISO 8601 timestamp
+    """
+    try:
+        person_id = person_name.lower()
+        if person_id not in ["sei", "deokhwa"]:
+            raise HTTPException(status_code=400, detail="person_name must be 'Sei' or 'Deokhwa'")
+        
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        date = dt.date().isoformat()
+        
+        gb = get_demo_graph()
+        
+        # Ensure day exists
+        day_id = f"day:{person_id}:{date}"
+        try:
+            gb.add_day(
+                day_id=day_id,
+                person_id=person_id,
+                date=date,
+                weekday=dt.weekday(),
+            )
+        except:
+            pass
+        
+        if type.lower() == "active":
+            # Add as activity
+            activity_id = f"activity:{person_id}:{date}:calories:{dt.hour}"
+            gb.add_activity(
+                activity_id=activity_id,
+                person_id=person_id,
+                date=date,
+                name="Active Calories",
+                day_id=day_id,
+                category="calories",
+                calories_burned=calories,
+            )
+        else:
+            # Add as dietary metric
+            metric_id = f"metric:{person_id}:{timestamp}:dietary_calories"
+            gb.add_metric(
+                metric_id=metric_id,
+                person_id=person_id,
+                metric_type="dietary_calories",
+                value=float(calories),
+                unit="kcal",
+                timestamp=timestamp,
+            )
+        
+        api_logger.info("Calories added", person=person_id, calories=calories, type=type)
+        return {"status": "success", "person": person_name, "calories": calories, "type": type}
+        
+    except Exception as e:
+        api_logger.error("Add calories failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/health/shortcuts-guide", tags=["iOS Shortcuts"], response_class=HTMLResponse)
+async def shortcuts_guide():
+    """
+    Return an HTML guide for setting up iOS Shortcuts.
+    """
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>iOS Shortcuts Setup Guide</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                max-width: 800px;
+                margin: 40px auto;
+                padding: 20px;
+                line-height: 1.6;
+            }
+            h1 { color: #4A90E2; }
+            h2 { color: #333; margin-top: 30px; }
+            .endpoint {
+                background: #f5f5f5;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 15px 0;
+            }
+            .url {
+                background: #fff;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-family: monospace;
+                word-break: break-all;
+            }
+            .example {
+                background: #e8f4f8;
+                padding: 10px;
+                border-left: 4px solid #4A90E2;
+                margin: 10px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🍎 iOS Shortcuts Setup Guide</h1>
+        <p>Configure iOS Shortcuts to automatically send your Apple Health data to the Family Health Graph.</p>
+        
+        <h2>📍 Base URL</h2>
+        <div class="url">http://your-server:8000</div>
+        
+        <h2>🚶 Steps Tracking</h2>
+        <div class="endpoint">
+            <strong>Endpoint:</strong> <code>POST /api/health/steps</code><br>
+            <strong>Parameters:</strong>
+            <ul>
+                <li><code>person_name</code> - Your name (Sei or Deokhwa)</li>
+                <li><code>steps</code> - Number of steps</li>
+                <li><code>timestamp</code> - Current time in ISO 8601 format</li>
+            </ul>
+            <div class="example">
+                <strong>Example:</strong><br>
+                person_name: Sei<br>
+                steps: 8500<br>
+                timestamp: 2026-02-06T14:30:00Z
+            </div>
+        </div>
+        
+        <h2>❤️ Heart Rate</h2>
+        <div class="endpoint">
+            <strong>Endpoint:</strong> <code>POST /api/health/heart-rate</code><br>
+            <strong>Parameters:</strong>
+            <ul>
+                <li><code>person_name</code> - Your name (Sei or Deokhwa)</li>
+                <li><code>bpm</code> - Heart rate in beats per minute</li>
+                <li><code>timestamp</code> - Current time in ISO 8601 format</li>
+            </ul>
+        </div>
+        
+        <h2>😴 Sleep Tracking</h2>
+        <div class="endpoint">
+            <strong>Endpoint:</strong> <code>POST /api/health/sleep</code><br>
+            <strong>Parameters:</strong>
+            <ul>
+                <li><code>person_name</code> - Your name (Sei or Deokhwa)</li>
+                <li><code>start_time</code> - Sleep start time (ISO 8601)</li>
+                <li><code>end_time</code> - Sleep end time (ISO 8601)</li>
+                <li><code>quality</code> - Sleep quality (good, fair, poor)</li>
+            </ul>
+        </div>
+        
+        <h2>🔥 Calorie Tracking</h2>
+        <div class="endpoint">
+            <strong>Endpoint:</strong> <code>POST /api/health/calories</code><br>
+            <strong>Parameters:</strong>
+            <ul>
+                <li><code>person_name</code> - Your name (Sei or Deokhwa)</li>
+                <li><code>calories</code> - Calorie amount</li>
+                <li><code>type</code> - Type (active or dietary)</li>
+                <li><code>timestamp</code> - Current time in ISO 8601 format</li>
+            </ul>
+        </div>
+        
+        <h2>📱 How to Create a Shortcut</h2>
+        <ol>
+            <li>Open the Shortcuts app on your iPhone</li>
+            <li>Tap the + button to create a new shortcut</li>
+            <li>Add "Get Health Sample" action to get data from Health app</li>
+            <li>Add "Get Contents of URL" action</li>
+            <li>Configure the URL with the endpoint above</li>
+            <li>Set Method to POST</li>
+            <li>Add form data with required parameters</li>
+            <li>Save and run the shortcut</li>
+        </ol>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
 
