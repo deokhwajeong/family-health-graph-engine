@@ -1,0 +1,2909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Health Graph Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #242834;
+      --border: #2e3345;
+      --text: #e4e6f0;
+      --text2: #8b8fa3;
+      --accent: #6c5ce7;
+      --accent2: #a29bfe;
+      --green: #00b894;
+      --red: #e17055;
+      --orange: #fdcb6e;
+      --blue: #74b9ff;
+      --pink: #fd79a8;
+      --teal: #81ecec;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,.3);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: 260px; background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 24px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand h1 {
+      font-size: 16px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .sidebar-brand p { font-size: 11px; color: var(--text2); margin-top: 4px; }
+    .sidebar-nav { padding: 12px 10px; flex: 1; overflow-y: auto; }
+    .nav-section { margin-bottom: 8px; }
+    .nav-section-title {
+      font-size: 10px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 1px;
+      padding: 8px 12px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; color: var(--text2);
+      cursor: pointer; transition: all .15s;
+      border: none; background: none; width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: var(--accent); color: #fff; }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+    /* ── Main ── */
+    .main { margin-left: 260px; padding: 24px 32px; min-height: 100vh; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-header h2 { font-size: 22px; font-weight: 700; }
+    .page-header .subtitle { font-size: 13px; color: var(--text2); }
+
+    /* ── Cards ── */
+    .grid { display: grid; gap: 16px; }
+    .grid-4 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card-title {
+      font-size: 12px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .5px;
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 28px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent2), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .card-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+    /* ── Stat card colors ── */
+    .stat-green .card-value { background: linear-gradient(135deg, var(--green), var(--teal)); -webkit-background-clip: text; }
+    .stat-red .card-value { background: linear-gradient(135deg, var(--red), var(--pink)); -webkit-background-clip: text; }
+    .stat-orange .card-value { background: linear-gradient(135deg, var(--orange), #e17055); -webkit-background-clip: text; }
+
+    /* ── Person tabs ── */
+    .person-tabs {
+      display: flex; gap: 8px; margin-bottom: 20px;
+      border-bottom: 1px solid var(--border); padding-bottom: 12px;
+    }
+    .person-tab {
+      padding: 8px 18px; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      background: var(--surface2); color: var(--text2);
+      border: 1px solid var(--border); cursor: pointer;
+      transition: all .15s;
+    }
+    .person-tab:hover { border-color: var(--accent); color: var(--text); }
+    .person-tab.active {
+      background: var(--accent); color: #fff;
+      border-color: var(--accent);
+    }
+    .person-tab .emoji { margin-right: 4px; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      border: none; cursor: pointer; transition: all .15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #5b4bd5; }
+    .btn-outline {
+      background: transparent; color: var(--accent2);
+      border: 1px solid var(--accent);
+    }
+    .btn-outline:hover { background: var(--accent); color: #fff; }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Chart ── */
+    .chart-container {
+      position: relative; height: 280px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .chart-container canvas { max-height: 248px; }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th {
+      font-size: 11px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .5px;
+      text-align: left; padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 10px 12px; font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table tr:hover td { background: var(--surface2); }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-green { background: rgba(0,184,148,.15); color: var(--green); }
+    .badge-red { background: rgba(225,112,85,.15); color: var(--red); }
+    .badge-orange { background: rgba(253,203,110,.15); color: var(--orange); }
+    .badge-blue { background: rgba(116,185,255,.15); color: var(--blue); }
+    .badge-purple { background: rgba(108,92,231,.15); color: var(--accent2); }
+
+    /* ── Loading ── */
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px; color: var(--text2); font-size: 14px;
+    }
+    .spinner {
+      width: 20px; height: 20px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .6s linear infinite; margin-right: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Anomaly reasons ── */
+    .reason-tag {
+      display: inline-block; padding: 2px 8px; margin: 2px;
+      border-radius: 4px; font-size: 11px;
+      background: rgba(225,112,85,.1); color: var(--red);
+    }
+
+    /* ── Graph Viz ── */
+    .graph-viz {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 0;
+      overflow: hidden; text-align: center;
+      position: relative;
+    }
+    .graph-viz svg { max-width: 100%; height: auto; }
+    .graph-viz .d3-graph { width: 100%; }
+    .d3-graph .node { cursor: pointer; }
+    .d3-graph .node:hover circle { stroke: #fff; stroke-width: 2px; }
+    .d3-graph .link { stroke: #2e3345; stroke-opacity: 0.4; }
+    .d3-graph .node-label { font-size: 9px; fill: #8b8fa3; pointer-events: none; }
+    .graph-tooltip {
+      position: absolute; padding: 8px 12px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 12px; pointer-events: none; z-index: 10;
+      color: var(--text); box-shadow: var(--shadow); max-width: 250px;
+    }
+    .graph-controls {
+      display: flex; gap: 8px; padding: 8px 12px;
+      background: var(--surface2); border-bottom: 1px solid var(--border);
+      align-items: center; flex-wrap: wrap;
+    }
+    .graph-controls label { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .graph-controls select, .graph-controls input[type=range] { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 2px 6px; font-size: 11px; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      position: fixed; bottom: 0; left: 260px; right: 0;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 8px 24px; font-size: 11px; color: var(--text2);
+      display: flex; justify-content: space-between; z-index: 100;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      display: inline-block; margin-right: 6px;
+    }
+    .status-dot.online { background: var(--green); }
+    .status-dot.offline { background: var(--red); }
+
+    /* ── Person detail section ── */
+    .detail-section { margin-bottom: 24px; }
+    .detail-section h3 {
+      font-size: 15px; font-weight: 600; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Toast ── */
+    .toast-container {
+      position: fixed; top: 16px; right: 16px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px; border-radius: 8px;
+      font-size: 13px; animation: slideIn .3s;
+      box-shadow: var(--shadow);
+    }
+    .toast-success { background: var(--green); color: #fff; }
+    .toast-error { background: var(--red); color: #fff; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } }
+
+    /* ── Ethics ── */
+    .risk-meter {
+      height: 8px; border-radius: 4px; background: var(--surface2);
+      overflow: hidden; margin-top: 8px;
+    }
+    .risk-meter-fill {
+      height: 100%; border-radius: 4px; transition: width .5s;
+    }
+    .risk-low { background: var(--green); }
+    .risk-medium { background: var(--orange); }
+    .risk-high { background: var(--red); }
+
+    /* ── Food classification colors ── */
+    .food-balanced { color: var(--green); }
+    .food-indulgent { color: var(--red); }
+    .food-moderate { color: var(--orange); }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .sidebar { width: 60px; }
+      .sidebar-brand p, .nav-section-title, .nav-item span:not(.icon) { display: none; }
+      .sidebar-brand h1 { font-size: 12px; }
+      .main { margin-left: 60px; padding: 16px; }
+      .status-bar { left: 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h1>🏠 Family Health</h1>
+    <p>Graph Engine v0.2.0</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">
+      <div class="nav-section-title">Overview</div>
+      <button class="nav-item active" data-page="dashboard">
+        <span class="icon">📊</span><span>Dashboard</span>
+      </button>
+      <button class="nav-item" data-page="graph">
+        <span class="icon">🕸️</span><span>Graph Visualization</span>
+      </button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Family Analysis</div>
+      <button class="nav-item" data-page="person">
+        <span class="icon">👤</span><span>Person Insights</span>
+      </button>
+      <button class="nav-item" data-page="recommendations">
+        <span class="icon">🎯</span><span>Health Goals</span>
+      </button>
+      <button class="nav-item" data-page="anomaly">
+        <span class="icon">⚠️</span><span>Anomaly Detection</span>
+      </button>
+      <button class="nav-item" data-page="food">
+        <span class="icon">🍽️</span><span>Food Classification</span>
+      </button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">ML & Prediction</div>
+      <button class="nav-item" data-page="prediction">
+        <span class="icon">🔮</span><span>Health Prediction</span>
+      </button>
+      <button class="nav-item" data-page="links">
+        <span class="icon">🔗</span><span>Link Prediction</span>
+      </button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Governance</div>
+      <button class="nav-item" data-page="ethics">
+        <span class="icon">⚖️</span><span>Ethics &amp; Audit</span>
+      </button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Data Import</div>
+      <button class="nav-item" data-page="apple-health">
+        <span class="icon">🍎</span><span>Apple Health</span>
+      </button>
+      <button class="nav-item" data-page="food-photo">
+        <span class="icon">📷</span><span>Food Photo</span>
+      </button>
+    </div>
+  </nav>
+</aside>
+
+<!-- Main Content -->
+<main class="main">
+
+  <!-- ═══════ Dashboard Page ═══════ -->
+  <section class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <h2>Dashboard</h2>
+        <div class="subtitle">Demo Family Health Graph Engine — 4 Members × 90 Days</div>
+      </div>
+      <button class="btn btn-primary" onclick="trainAllModels()">
+        🧠 Train All Models
+      </button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-4" id="kpi-cards">
+      <div class="card"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-2" style="margin-top: 20px;">
+      <div>
+        <h3 style="font-size:14px; margin-bottom: 12px;">🥗 Daily Nutrition by Family Member</h3>
+        <div class="chart-container"><canvas id="chart-nutrition"></canvas></div>
+      </div>
+      <div>
+        <h3 style="font-size:14px; margin-bottom: 12px;">😴 Family Sleep Patterns</h3>
+        <div class="chart-container"><canvas id="chart-sleep"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Family Overview -->
+    <div style="margin-top: 20px;">
+      <h3 style="font-size:14px; margin-bottom: 12px;">👨‍👩‍👧‍👦 Family Members Status Today</h3>
+      <div class="grid grid-4" id="family-status-cards">
+        <div class="card"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Graph Visualization -->
+    <div style="margin-top: 20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:14px;">🕸️ Health Data Relationship Graph (14-day)</h3>
+        <button class="btn btn-outline btn-sm" onclick="loadDashboardGraph()">🔄 Refresh</button>
+      </div>
+      <div class="graph-viz" id="dashboard-graph" style="height:500px;">
+        <div class="loading"><div class="spinner"></div>Rendering graph...</div>
+      </div>
+    </div>
+
+    <!-- 7-Day Health Trends -->
+    <div style="margin-top: 20px;">
+      <h3 style="font-size:14px; margin-bottom:12px;">📈 7-Day Health Trends</h3>
+      <div class="grid grid-2">
+        <div>
+          <div class="chart-container" style="height:260px;"><canvas id="chart-trends-nutrition"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-container" style="height:260px;"><canvas id="chart-trends-sleep"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ Graph Visualization Page ═══════ -->
+  <section class="page" id="page-graph">
+    <div class="page-header">
+      <div>
+        <h2>Graph Visualization</h2>
+        <div class="subtitle">Health Data Relationship Network — Interactive Force-Directed Graph</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="graph-days-select" class="btn btn-outline btn-sm" style="padding:6px 12px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; cursor:pointer;">
+          <option value="7">7 days</option>
+          <option value="14" selected>14 days</option>
+          <option value="30">30 days</option>
+          <option value="60">60 days</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadGraphPage()">🔄 Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleGraphFullscreen()">⛶ Fullscreen</button>
+      </div>
+    </div>
+
+    <!-- Graph Legend -->
+    <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px; padding:12px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);">
+      <div style="font-size:11px; font-weight:600; color:var(--text2); margin-right:8px;">NODE TYPES:</div>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#1f77b4; display:inline-block;"></span> Household</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#ff7f0e; display:inline-block;"></span> Person</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#2ca02c; display:inline-block;"></span> Day</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#17becf; display:inline-block;"></span> Activity</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#d62728; display:inline-block;"></span> Meal</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#9467bd; display:inline-block;"></span> Sleep</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#e377c2; display:inline-block;"></span> Food</span>
+      <span style="display:flex; align-items:center; gap:4px; font-size:12px;"><span style="width:10px; height:10px; border-radius:50%; background:#bcbd22; display:inline-block;"></span> Metric</span>
+    </div>
+
+    <!-- Graph Stats -->
+    <div class="grid grid-4" id="graph-page-stats" style="margin-bottom:16px;"></div>
+
+    <!-- Interactive D3 Graph -->
+    <div class="graph-viz" id="graph-d3-container" style="height:600px;">
+      <div class="loading"><div class="spinner"></div>Generating interactive graph...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Person Insights Page ═══════ -->
+  <section class="page" id="page-person">
+    <div class="page-header">
+      <div>
+        <h2>Person Insights</h2>
+        <div class="subtitle">Detailed Health Analysis for Each Family Member</div>
+      </div>
+    </div>
+    <div class="person-tabs" id="person-tabs-insight">
+      <button class="person-tab active" data-person="person:leo"><span class="emoji">👦</span>Leo</button>
+      <button class="person-tab" data-person="person:alex"><span class="emoji">👨</span>Alex</button>
+      <button class="person-tab" data-person="person:jordan"><span class="emoji">👩</span>Jordan</button>
+      <button class="person-tab" data-person="person:mia"><span class="emoji">👧</span>Mia</button>
+    </div>
+    <div id="person-insight-content">
+      <div class="loading"><div class="spinner"></div>Loading data...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Anomaly Detection Page ═══════ -->
+  <section class="page" id="page-anomaly">
+    <div class="page-header">
+      <div>
+        <h2>Anomaly Detection</h2>
+        <div class="subtitle">Isolation Forest + LOF Ensemble — Behavioral Anomaly Detection</div>
+      </div>
+    </div>
+    <div class="person-tabs" id="person-tabs-anomaly">
+      <button class="person-tab active" data-person="person:leo"><span class="emoji">👦</span>Leo</button>
+      <button class="person-tab" data-person="person:alex"><span class="emoji">👨</span>Alex</button>
+      <button class="person-tab" data-person="person:jordan"><span class="emoji">👩</span>Jordan</button>
+      <button class="person-tab" data-person="person:mia"><span class="emoji">👧</span>Mia</button>
+    </div>
+    <div id="anomaly-content">
+      <div class="loading"><div class="spinner"></div>Loading data...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Food Classification Page ═══════ -->
+  <section class="page" id="page-food">
+    <div class="page-header">
+      <div>
+        <h2>Food Classification</h2>
+        <div class="subtitle">AI Classification of 50 Food Nutritional Profiles</div>
+      </div>
+    </div>
+    <div id="food-content">
+      <div class="loading"><div class="spinner"></div>Analyzing food data...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Prediction Page ═══════ -->
+  <section class="page" id="page-prediction">
+    <div class="page-header">
+      <div>
+        <h2>Health Prediction</h2>
+        <div class="subtitle">Behavioral Correlations & Health Metric Predictions</div>
+      </div>
+    </div>
+    <div class="person-tabs" id="person-tabs-prediction">
+      <button class="person-tab active" data-person="person:leo"><span class="emoji">👦</span>Leo</button>
+      <button class="person-tab" data-person="person:alex"><span class="emoji">👨</span>Alex</button>
+      <button class="person-tab" data-person="person:jordan"><span class="emoji">👩</span>Jordan</button>
+      <button class="person-tab" data-person="person:mia"><span class="emoji">👧</span>Mia</button>
+    </div>
+    <div id="prediction-content">
+      <div class="loading"><div class="spinner"></div>Loading data...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Link Prediction Page ═══════ -->
+  <section class="page" id="page-links">
+    <div class="page-header">
+      <div>
+        <h2>Link Prediction</h2>
+        <div class="subtitle">Discover Hidden Food-Health Relationships</div>
+      </div>
+    </div>
+    <div id="links-content">
+      <div class="loading"><div class="spinner"></div>Analyzing links...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Ethics Page ═══════ -->
+  <section class="page" id="page-ethics">
+    <div class="page-header">
+      <div>
+        <h2>Ethics &amp; Governance</h2>
+        <div class="subtitle">Privacy Protection, Minor Protection, Fairness Audit</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="loadEthicsAudit()">🔄 Run Audit</button>
+    </div>
+    <div id="ethics-content">
+      <div class="loading"><div class="spinner"></div>Running ethics audit...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Food Photo Analysis Page ═══════ -->
+  <section class="page" id="page-food-photo">
+    <div class="page-header">
+      <div>
+        <h2>📷 Food Photo Analysis</h2>
+        <div class="subtitle">Take or upload a food photo to get instant nutrition analysis via OCR</div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="gap:24px;">
+      <!-- Photo Upload / Camera -->
+      <div class="detail-section">
+        <h3>📤 Upload or Capture Food Photo</h3>
+        <div style="background:var(--surface2); border-radius:12px; padding:20px; margin-top:12px;">
+          <form id="food-photo-form" onsubmit="handleFoodPhotoUpload(event)" style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+              <div style="flex:1; min-width:180px;">
+                <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Person</label>
+                <select id="food-photo-person" style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+                  <option value="leo">Leo</option>
+                  <option value="alex">Alex</option>
+                  <option value="jordan">Jordan</option>
+                  <option value="mia">Mia</option>
+                </select>
+              </div>
+              <div style="flex:1; min-width:180px;">
+                <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Date</label>
+                <input type="date" id="food-photo-date" style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+              </div>
+            </div>
+
+            <!-- Image preview area -->
+            <div id="food-photo-preview" style="width:100%; min-height:200px; border:2px dashed var(--border); border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; overflow:hidden; background:var(--surface);"
+                 onclick="document.getElementById('food-photo-input').click()">
+              <div id="food-photo-placeholder" style="text-align:center; color:var(--text2);">
+                <div style="font-size:48px; margin-bottom:8px;">📷</div>
+                <div style="font-size:14px;">Click to select an image or drag & drop</div>
+                <div style="font-size:12px; margin-top:4px;">Supports JPG, PNG, WebP</div>
+              </div>
+              <img id="food-photo-img" style="max-width:100%; max-height:300px; display:none; border-radius:10px;">
+            </div>
+            <input type="file" id="food-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFoodPhotoSelect(event)">
+
+            <div style="display:flex; gap:12px; align-items:center;">
+              <label style="font-size:13px; color:var(--text2); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="food-photo-add-graph" style="width:16px; height:16px; accent-color:var(--accent);">
+                Add to health graph
+              </label>
+            </div>
+
+            <div style="display:flex; gap:12px;">
+              <button type="submit" class="btn btn-primary" id="food-photo-btn" disabled>
+                🔍 Analyze Photo
+              </button>
+              <button type="button" class="btn btn-outline" onclick="clearFoodPhoto()">
+                🗑️ Clear
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Manual text input -->
+        <h3 style="margin-top:24px;">✏️ Or Describe Your Meal</h3>
+        <div style="background:var(--surface2); border-radius:12px; padding:20px; margin-top:12px;">
+          <form id="food-text-form" onsubmit="handleFoodTextAnalysis(event)" style="display:flex; flex-direction:column; gap:12px;">
+            <textarea id="food-text-input" rows="3" placeholder="e.g. chicken breast with brown rice, spinach salad, and orange juice"
+              style="width:100%; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px; resize:vertical; font-family:inherit;"></textarea>
+            <button type="submit" class="btn btn-primary btn-sm">📝 Analyze Text</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Results Panel -->
+      <div>
+        <div class="detail-section">
+          <h3>📊 Analysis Results</h3>
+          <div id="food-photo-results" style="min-height:200px;">
+            <div style="text-align:center; padding:40px; color:var(--text2);">
+              <div style="font-size:48px; margin-bottom:12px;">🍽️</div>
+              <div style="font-size:14px;">Upload a food photo or type a meal description</div>
+              <div style="font-size:12px; margin-top:4px;">Recognized foods will appear here with nutrition details</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nutrition chart -->
+        <div class="detail-section" style="margin-top:16px;">
+          <h3>📈 Nutrition Breakdown</h3>
+          <div class="chart-container" style="height:250px;">
+            <canvas id="chart-food-photo-nutrition"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nutrition Database Quick Search -->
+    <div class="detail-section" style="margin-top:24px;">
+      <h3>🔍 Nutrition Database Search</h3>
+      <div style="display:flex; gap:12px; margin-top:12px; margin-bottom:16px;">
+        <input type="text" id="food-db-search" placeholder="Search food... (e.g. chicken, banana, pizza)"
+          style="flex:1; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;"
+          onkeyup="if(event.key==='Enter') searchFoodDB()">
+        <button class="btn btn-primary btn-sm" onclick="searchFoodDB()">Search</button>
+      </div>
+      <div id="food-db-results"></div>
+    </div>
+  </section>
+
+  <!-- ═══════ Health Goals & Recommendations Page ═══════ -->
+  <section class="page" id="page-recommendations">
+    <div class="page-header">
+      <div>
+        <h2>🎯 Health Goals & Recommendations</h2>
+        <div class="subtitle">Ideal targets vs. current status — personalized food, exercise &amp; supplement advice</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="loadRecommendations()">🔄 Refresh</button>
+    </div>
+
+    <!-- Person Tabs -->
+    <div class="person-tabs" id="rec-tabs">
+      <button class="person-tab active" data-person="person:leo" onclick="loadRecForPerson('leo')">👦 Leo</button>
+      <button class="person-tab" data-person="person:alex" onclick="loadRecForPerson('alex')">👨 Alex</button>
+      <button class="person-tab" data-person="person:jordan" onclick="loadRecForPerson('jordan')">👩 Jordan</button>
+      <button class="person-tab" data-person="person:mia" onclick="loadRecForPerson('mia')">👧 Mia</button>
+    </div>
+
+    <div id="rec-content">
+      <div class="loading"><div class="spinner"></div>Loading...</div>
+    </div>
+  </section>
+
+  <!-- ═══════ Apple Health Page ═══════ -->
+  <section class="page" id="page-apple-health">
+    <div class="page-header">
+      <div>
+        <h2>🍎 Apple Health Integration</h2>
+        <div class="subtitle">Upload your Apple Health export to integrate with the health graph</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="loadAppleHealth()">🔄 Refresh</button>
+    </div>
+    <div id="apple-health-content">
+      <div class="loading"><div class="spinner"></div>Loading...</div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div>
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+  </div>
+  <div id="status-info"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  API Helper
+// ═══════════════════════════════════════════
+const API = '';
+const DAYS = 90;
+const DATE = '2025-07-13';
+const PEOPLE = [
+  { id:'person:leo', name:'Leo', emoji:'👦', role:'Child' },
+  { id:'person:alex', name:'Alex', emoji:'👨', role:'Parent' },
+  { id:'person:jordan', name:'Jordan', emoji:'👩', role:'Parent' },
+  { id:'person:mia', name:'Mia', emoji:'👧', role:'Child' },
+];
+const PERSON_COLORS = {
+  'person:leo': '#a29bfe',
+  'person:alex': '#74b9ff',
+  'person:jordan': '#00b894',
+  'person:mia': '#fd79a8',
+};
+
+async function api(path) {
+  const res = await fetch(`${API}${path}`);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+async function apiPost(path) {
+  const res = await fetch(`${API}${path}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+async function apiText(path) {
+  const res = await fetch(`${API}${path}`);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.text();
+}
+
+function toast(msg, type='success') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ═══════════════════════════════════════════
+//  Navigation
+// ═══════════════════════════════════════════
+const navItems = document.querySelectorAll('.nav-item');
+const pages = document.querySelectorAll('.page');
+const pageLoaders = {
+  dashboard: loadDashboard,
+  graph: loadGraphPage,
+  person: () => loadPersonInsight('person:leo'),
+  anomaly: () => loadAnomaly('person:leo'),
+  food: loadFoodClassification,
+  prediction: () => loadPrediction('person:leo'),
+  links: loadLinkPredictions,
+  ethics: loadEthicsAudit,
+  'apple-health': loadAppleHealth,
+  'food-photo': loadFoodPhotoPage,
+  'recommendations': loadRecommendations,
+};
+const loadedPages = new Set();
+
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    const page = item.dataset.page;
+    navItems.forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    pages.forEach(p => p.classList.remove('active'));
+    document.getElementById(`page-${page}`).classList.add('active');
+    if (!loadedPages.has(page) && pageLoaders[page]) {
+      pageLoaders[page]();
+      loadedPages.add(page);
+    }
+  });
+});
+
+// Person tab handlers
+document.querySelectorAll('.person-tabs').forEach(tabGroup => {
+  tabGroup.addEventListener('click', e => {
+    const tab = e.target.closest('.person-tab');
+    if (!tab) return;
+    tabGroup.querySelectorAll('.person-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const pid = tab.dataset.person;
+    const pageId = tabGroup.id;
+    if (pageId.includes('insight')) loadPersonInsight(pid);
+    else if (pageId.includes('anomaly')) loadAnomaly(pid);
+    else if (pageId.includes('prediction')) loadPrediction(pid);
+  });
+});
+
+// ═══════════════════════════════════════════
+//  Dashboard
+// ═══════════════════════════════════════════
+let chartNutrition, chartSleep;
+
+async function loadDashboard() {
+  try {
+    // Load graph stats
+    const stats = await api(`/ml/debug/graph-stats?days=${DAYS}`);
+    document.getElementById('kpi-cards').innerHTML = `
+      <div class="card">
+        <div class="card-title">Total Nodes</div>
+        <div class="card-value">${stats.total_nodes.toLocaleString()}</div>
+        <div class="card-sub">${Object.entries(stats.node_types).map(([k,v]) => `${k}: ${v}`).join(' · ')}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total Edges</div>
+        <div class="card-value">${stats.total_edges.toLocaleString()}</div>
+        <div class="card-sub">Avg Degree: ${stats.avg_degree.toFixed(1)}</div>
+      </div>
+      <div class="card stat-green">
+        <div class="card-title">Analysis Period</div>
+        <div class="card-value">${stats.days} days</div>
+        <div class="card-sub">4-member family health data</div>
+      </div>
+      <div class="card stat-orange">
+        <div class="card-title">Diet Records</div>
+        <div class="card-value">${stats.node_types.meal || 0}</div>
+        <div class="card-sub">Foods: ${stats.node_types.food || 0} · Activities: ${stats.node_types.activity || 0}</div>
+      </div>
+    `;
+
+    // Load per-person insights for nutrition & sleep charts
+    const insightPromises = PEOPLE.map(p =>
+      api(`/ml/insights/daily/${encodeURIComponent(p.id)}/${DATE}?days=${DAYS}`)
+        .catch(() => null)
+    );
+    const insights = await Promise.all(insightPromises);
+
+    // Nutrition chart
+    const nutritionData = {
+      labels: PEOPLE.map(p => p.name),
+      datasets: [
+        {
+          label: 'Calories (kcal)',
+          data: insights.map(d => d?.daily_features?.total_calories || 0),
+          backgroundColor: 'rgba(162,155,254,.7)',
+        },
+        {
+          label: 'Protein (g)',
+          data: insights.map(d => d?.daily_features?.total_protein_g || 0),
+          backgroundColor: 'rgba(116,185,255,.7)',
+        },
+        {
+          label: 'Fiber (g)',
+          data: insights.map(d => d?.daily_features?.total_fiber_g || 0),
+          backgroundColor: 'rgba(0,184,148,.7)',
+        },
+        {
+          label: 'Sugar (g)',
+          data: insights.map(d => d?.daily_features?.total_sugar_g || 0),
+          backgroundColor: 'rgba(253,121,168,.7)',
+        },
+      ]
+    };
+    if (chartNutrition) chartNutrition.destroy();
+    chartNutrition = new Chart(document.getElementById('chart-nutrition'), {
+      type: 'bar',
+      data: nutritionData,
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#8b8fa3', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } },
+          y: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } }
+        }
+      }
+    });
+
+    // Sleep chart
+    const sleepData = {
+      labels: PEOPLE.map(p => p.name),
+      datasets: [
+        {
+          label: 'Sleep Duration (h)',
+          data: insights.map(d => d?.daily_features?.sleep_duration_h?.toFixed(1) || 0),
+          backgroundColor: PEOPLE.map(p => PERSON_COLORS[p.id] + 'cc'),
+          borderColor: PEOPLE.map(p => PERSON_COLORS[p.id]),
+          borderWidth: 1,
+        },
+      ]
+    };
+    if (chartSleep) chartSleep.destroy();
+    chartSleep = new Chart(document.getElementById('chart-sleep'), {
+      type: 'bar',
+      data: sleepData,
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' }, max: 12 },
+          y: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } }
+        }
+      }
+    });
+
+    // Family status cards
+    let statusHtml = '';
+    for (let i = 0; i < PEOPLE.length; i++) {
+      const p = PEOPLE[i];
+      const d = insights[i];
+      const f = d?.daily_features || {};
+      const a = d?.anomaly || {};
+      const badgeClass = a.is_anomaly ? 'badge-red' : 'badge-green';
+      const badgeText = a.is_anomaly ? 'Anomaly' : 'Normal';
+      statusHtml += `
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div style="font-size:18px;">${p.emoji} <strong>${p.name}</strong></div>
+            <span class="badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div style="font-size:12px; color: var(--text2); line-height: 1.8;">
+            🍽️ ${(f.meal_count || 0)} meals · ${(f.total_calories || 0).toLocaleString()} kcal<br>
+            😴 ${(f.sleep_duration_h || 0).toFixed(1)}h · Quality ${(f.sleep_quality || 0).toFixed(0)}pts<br>
+            🏃 Activity ${f.activity_count || 0}x · ${(f.total_calories_burned || 0).toFixed(0)} kcal burned
+            ${a.reasons?.length ? '<br>⚠️ ' + a.reasons.join(', ') : ''}
+          </div>
+        </div>
+      `;
+    }
+    document.getElementById('family-status-cards').innerHTML = statusHtml;
+
+    updateStatus('online', `${stats.total_nodes} nodes · ${stats.total_edges} edges`);
+
+    // Load graph SVG into dashboard (non-blocking)
+    loadDashboardGraph();
+
+    // Load 7-day trend charts
+    loadTrendCharts();
+  } catch (e) {
+    console.error(e);
+    updateStatus('offline', 'Server Connection Failed');
+    document.getElementById('kpi-cards').innerHTML = `
+      <div class="card stat-red">
+        <div class="card-title">Error</div>
+        <div class="card-value" style="font-size:16px;">Server Connection Failed</div>
+        <div class="card-sub">Please train the models first</div>
+      </div>
+    `;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Graph Visualization (D3.js Force-Directed)
+// ═══════════════════════════════════════════
+
+function renderD3Graph(containerId, graphData, height = 500) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  const width = container.clientWidth || 800;
+  const tooltip = document.createElement('div');
+  tooltip.className = 'graph-tooltip';
+  tooltip.style.display = 'none';
+  container.appendChild(tooltip);
+
+  const svg = d3.select(`#${containerId}`)
+    .append('svg')
+    .attr('class', 'd3-graph')
+    .attr('width', width)
+    .attr('height', height)
+    .attr('viewBox', [0, 0, width, height]);
+
+  // Zoom
+  const g = svg.append('g');
+  const zoom = d3.zoom()
+    .scaleExtent([0.2, 5])
+    .on('zoom', (event) => g.attr('transform', event.transform));
+  svg.call(zoom);
+
+  const nodes = graphData.nodes;
+  const links = graphData.links;
+
+  // Force simulation
+  const simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(40).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-60).distanceMax(200))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => d.size + 2))
+    .force('x', d3.forceX(width / 2).strength(0.05))
+    .force('y', d3.forceY(height / 2).strength(0.05));
+
+  // Draw links
+  const link = g.append('g')
+    .selectAll('line')
+    .data(links)
+    .join('line')
+    .attr('class', 'link')
+    .attr('stroke-width', 0.5);
+
+  // Draw nodes
+  const node = g.append('g')
+    .selectAll('g')
+    .data(nodes)
+    .join('g')
+    .attr('class', 'node')
+    .call(d3.drag()
+      .on('start', (event, d) => {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x; d.fy = d.y;
+      })
+      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on('end', (event, d) => {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null; d.fy = null;
+      })
+    );
+
+  node.append('circle')
+    .attr('r', d => d.size)
+    .attr('fill', d => d.color)
+    .attr('opacity', 0.85)
+    .attr('stroke', '#ffffff22')
+    .attr('stroke-width', 0.5);
+
+  // Labels for large nodes only
+  node.filter(d => d.type === 'person' || d.type === 'household' || d.type === 'day')
+    .append('text')
+    .attr('class', 'node-label')
+    .attr('dy', d => d.size + 12)
+    .attr('text-anchor', 'middle')
+    .text(d => d.label);
+
+  // Tooltip
+  node.on('mouseover', (event, d) => {
+    tooltip.style.display = 'block';
+    tooltip.innerHTML = `
+      <div style="font-weight:600; margin-bottom:4px;">${d.label}</div>
+      <div style="font-size:11px; color:var(--text2);">
+        Type: <span style="color:${d.color}; font-weight:600;">${d.type}</span><br>
+        ${d.name ? `Name: ${d.name}<br>` : ''}
+        ${d.date ? `Date: ${d.date}<br>` : ''}
+        ID: ${d.id}
+      </div>
+    `;
+  })
+  .on('mousemove', (event) => {
+    const rect = container.getBoundingClientRect();
+    tooltip.style.left = (event.clientX - rect.left + 12) + 'px';
+    tooltip.style.top = (event.clientY - rect.top - 10) + 'px';
+  })
+  .on('mouseout', () => { tooltip.style.display = 'none'; });
+
+  // Highlight connected on click
+  node.on('click', (event, d) => {
+    const connected = new Set();
+    connected.add(d.id);
+    links.forEach(l => {
+      const src = typeof l.source === 'object' ? l.source.id : l.source;
+      const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+      if (src === d.id) connected.add(tgt);
+      if (tgt === d.id) connected.add(src);
+    });
+    node.select('circle').attr('opacity', n => connected.has(n.id) ? 1 : 0.1);
+    link.attr('stroke-opacity', l => {
+      const src = typeof l.source === 'object' ? l.source.id : l.source;
+      const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+      return connected.has(src) && connected.has(tgt) ? 0.8 : 0.05;
+    });
+    node.selectAll('text').attr('opacity', n => connected.has(n.id) ? 1 : 0.1);
+  });
+
+  // Double-click to reset
+  svg.on('dblclick.zoom', null);
+  svg.on('dblclick', () => {
+    node.select('circle').attr('opacity', 0.85);
+    link.attr('stroke-opacity', 0.4);
+    node.selectAll('text').attr('opacity', 1);
+  });
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  return simulation;
+}
+
+async function loadDashboardGraph() {
+  const c = document.getElementById('dashboard-graph');
+  if (!c) return;
+  c.innerHTML = '<div class="loading"><div class="spinner"></div>Rendering interactive graph...</div>';
+  try {
+    const data = await api('/api/graph/d3?days=14&max_nodes=300');
+    renderD3Graph('dashboard-graph', data, 480);
+  } catch (e) {
+    c.innerHTML = `<div class="loading" style="color:var(--red);">Graph loading failed: ${e.message}</div>`;
+  }
+}
+
+async function loadGraphPage() {
+  const c = document.getElementById('graph-d3-container');
+  const daysSelect = document.getElementById('graph-days-select');
+  const selectedDays = daysSelect ? daysSelect.value : 14;
+  if (!c) return;
+  c.innerHTML = '<div class="loading"><div class="spinner"></div>Generating interactive graph...</div>';
+
+  try {
+    const [data, stats] = await Promise.all([
+      api(`/api/graph/d3?days=${selectedDays}&max_nodes=500`),
+      api(`/api/graph/stats?days=${selectedDays}`),
+    ]);
+
+    // Stats cards
+    const statsDiv = document.getElementById('graph-page-stats');
+    if (statsDiv) {
+      const density = stats.density || 0;
+      statsDiv.innerHTML = `
+        <div class="card">
+          <div class="card-title">Total Nodes</div>
+          <div class="card-value">${stats.total_nodes.toLocaleString()}</div>
+          <div class="card-sub">${Object.entries(stats.node_types).map(([k,v])=>`${k}: ${v}`).join(' · ')}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Total Edges</div>
+          <div class="card-value">${stats.total_edges.toLocaleString()}</div>
+          <div class="card-sub">Avg Degree: ${stats.avg_degree.toFixed(1)} · Max: ${stats.max_degree}</div>
+        </div>
+        <div class="card stat-green">
+          <div class="card-title">Period</div>
+          <div class="card-value">${selectedDays} days</div>
+          <div class="card-sub">${Object.keys(stats.persons || {}).length} family members</div>
+        </div>
+        <div class="card stat-orange">
+          <div class="card-title">Density</div>
+          <div class="card-value">${(density * 100).toFixed(3)}%</div>
+          <div class="card-sub">Displayed: ${data.stats.total_nodes} nodes</div>
+        </div>
+      `;
+    }
+
+    renderD3Graph('graph-d3-container', data, 580);
+  } catch (e) {
+    c.innerHTML = `<div class="loading" style="color:var(--red);">Graph loading failed: ${e.message}</div>`;
+  }
+}
+
+function toggleGraphFullscreen() {
+  const container = document.getElementById('graph-d3-container');
+  if (!container) return;
+  if (!document.fullscreenElement) {
+    container.style.background = 'var(--bg)';
+    container.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+// ═══════════════════════════════════════════
+//  7-Day Health Trends
+// ═══════════════════════════════════════════
+let chartTrendsNutrition, chartTrendsSleep;
+
+async function loadTrendCharts() {
+  const dates = [];
+  const base = new Date('2025-07-07');
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  try {
+    // Fetch for Leo (primary child)
+    const results = await Promise.all(
+      dates.map(d =>
+        api(`/ml/insights/daily/person%3Asei/${d}?days=${DAYS}`).catch(() => null)
+      )
+    );
+
+    const labels = dates.map(d => d.slice(5));
+    const calories = results.map(r => r?.daily_features?.total_calories || 0);
+    const protein = results.map(r => r?.daily_features?.total_protein_g || 0);
+    const sleepH = results.map(r => r?.daily_features?.sleep_duration_h || 0);
+    const sleepQ = results.map(r => r?.daily_features?.sleep_quality || 0);
+    const energy = results.map(r => r?.daily_features?.metric_energy_level || 0);
+    const mood = results.map(r => r?.daily_features?.metric_mood || 0);
+
+    // Nutrition trend
+    if (chartTrendsNutrition) chartTrendsNutrition.destroy();
+    chartTrendsNutrition = new Chart(document.getElementById('chart-trends-nutrition'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Calories', data: calories, borderColor: '#a29bfe', backgroundColor: '#a29bfe33', tension: 0.3, fill: true, yAxisID: 'y' },
+          { label: 'Energy', data: energy, borderColor: '#00b894', borderDash: [4, 4], tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
+          { label: 'Mood', data: mood, borderColor: '#fd79a8', borderDash: [4, 4], tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#8b8fa3', font: { size: 11 } } },
+          title: { display: true, text: '👦 Leo — Nutrition & Metrics', color: '#e4e6f0', font: { size: 12 } }
+        },
+        scales: {
+          x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } },
+          y: { position: 'left', ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' }, title: { display: true, text: 'kcal', color: '#8b8fa3' } },
+          y1: { position: 'right', ticks: { color: '#8b8fa3' }, grid: { display: false }, min: 0, max: 100, title: { display: true, text: 'Score', color: '#8b8fa3' } },
+        }
+      }
+    });
+
+    // Sleep trend
+    if (chartTrendsSleep) chartTrendsSleep.destroy();
+    chartTrendsSleep = new Chart(document.getElementById('chart-trends-sleep'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Sleep (h)', data: sleepH, backgroundColor: '#9467bdaa', borderRadius: 4, yAxisID: 'y' },
+          { label: 'Quality', data: sleepQ, type: 'line', borderColor: '#fdcb6e', tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#8b8fa3', font: { size: 11 } } },
+          title: { display: true, text: '👦 Leo — Sleep Patterns', color: '#e4e6f0', font: { size: 12 } }
+        },
+        scales: {
+          x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } },
+          y: { position: 'left', ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' }, max: 14, title: { display: true, text: 'Hours', color: '#8b8fa3' } },
+          y1: { position: 'right', ticks: { color: '#8b8fa3' }, grid: { display: false }, min: 0, max: 100, title: { display: true, text: 'Quality', color: '#8b8fa3' } },
+        }
+      }
+    });
+  } catch (e) {
+    console.error('Trend charts error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Person Insight
+// ═══════════════════════════════════════════
+async function loadPersonInsight(personId) {
+  const container = document.getElementById('person-insight-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading detailed analysis...</div>';
+
+  try {
+    const [insight, corr, summary] = await Promise.all([
+      api(`/ml/insights/daily/${encodeURIComponent(personId)}/${DATE}?days=${DAYS}`),
+      api(`/ml/anomalies/correlations/${encodeURIComponent(personId)}?days=${DAYS}`),
+      api(`/ml/summary/${encodeURIComponent(personId)}?days=${DAYS}`),
+    ]);
+
+    const f = insight.daily_features || {};
+    const a = insight.anomaly || {};
+    const person = PEOPLE.find(p => p.id === personId);
+    const color = PERSON_COLORS[personId];
+
+    let corrRows = '';
+    for (const [k, v] of Object.entries(corr.correlations || {})) {
+      const strength = Math.abs(v);
+      const dir = v > 0 ? '↑ Positive' : '↓ Negative';
+      const badge = strength > 0.3 ? 'badge-red' : strength > 0.15 ? 'badge-orange' : 'badge-blue';
+      corrRows += `<tr>
+        <td>${k.replace('->', ' → ').replace('(+1d)', '(next day)')}</td>
+        <td><span class="badge ${badge}">${dir}</span></td>
+        <td style="font-family:monospace;">${v.toFixed(4)}</td>
+      </tr>`;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+        <div style="font-size:36px;">${person.emoji}</div>
+        <div>
+          <div style="font-size:18px; font-weight:700;">${person.name}</div>
+          <div style="font-size:12px; color:var(--text2);">${person.role} · as of ${DATE}</div>
+        </div>
+        <span class="badge ${a.is_anomaly ? 'badge-red' : 'badge-green'}" style="margin-left:auto;">
+          Anomaly Score: ${(a.anomaly_score||0).toFixed(3)}
+        </span>
+      </div>
+ 
+      <div class="grid grid-4" style="margin-bottom:24px;">
+        <div class="card">
+          <div class="card-title">🍽️ Meals</div>
+          <div class="card-value">${f.meal_count || 0}</div>
+          <div class="card-sub">${(f.total_calories||0).toLocaleString()} kcal</div>
+        </div>
+        <div class="card">
+          <div class="card-title">🥩 Protein</div>
+          <div class="card-value">${(f.total_protein_g||0)}g</div>
+          <div class="card-sub">Fiber ${(f.total_fiber_g||0)}g · Sugar ${(f.total_sugar_g||0)}g</div>
+        </div>
+        <div class="card">
+          <div class="card-title">😴 Sleep</div>
+          <div class="card-value">${(f.sleep_duration_h||0).toFixed(1)}h</div>
+          <div class="card-sub">Sleep Quality: ${(f.sleep_quality||0).toFixed(0)}pts</div>
+        </div>
+        <div class="card">
+          <div class="card-title">🏃 Activity</div>
+          <div class="card-value">${f.activity_count||0}</div>
+          <div class="card-sub">${(f.total_calories_burned||0).toFixed(0)} kcal burned</div>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom:24px;">
+        <div>
+          <div class="detail-section">
+            <h3>📊 Health Profile Radar</h3>
+            <div class="chart-container" style="height:280px;"><canvas id="chart-person-radar"></canvas></div>
+          </div>
+        </div>
+        <div>
+          <div class="detail-section">
+            <h3>📈 Metric Scores</h3>
+            <div class="chart-container" style="height:280px;"><canvas id="chart-person-metrics"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      ${a.reasons?.length ? `
+        <div class="detail-section">
+          <h3>⚠️ Anomaly Reasons</h3>
+          <div>${a.reasons.map(r=>`<span class="reason-tag">${r}</span>`).join('')}</div>
+        </div>
+      ` : ''}
+
+      <div class="detail-section">
+        <h3>🔗 Behavior-Health Correlations</h3>
+        ${corrRows ? `
+        <table class="data-table">
+          <thead><tr><th>Pattern</th><th>Direction</th><th>Coefficient</th></tr></thead>
+          <tbody>${corrRows}</tbody>
+        </table>` : '<div style="color:var(--text2); font-size:13px;">No significant correlations found.</div>'}
+      </div>
+
+      <div class="detail-section">
+        <h3>📊 Data Summary</h3>
+        <div class="grid grid-4">
+          <div class="card"><div class="card-title">Diet Records</div><div class="card-value">${summary.data_points?.meals_recorded||0}</div></div>
+          <div class="card"><div class="card-title">Activity Records</div><div class="card-value">${summary.data_points?.activities_recorded||0}</div></div>
+          <div class="card"><div class="card-title">Health Metrics</div><div class="card-value">${summary.data_points?.metrics_recorded||0}</div></div>
+          <div class="card"><div class="card-title">Days Analyzed</div><div class="card-value">${summary.days_analyzed||0}</div></div>
+        </div>
+      </div>
+    `;
+
+    // Radar chart
+    const radarLabels = ['Calories', 'Protein', 'Fiber', 'Sugar', 'Meals', 'Sleep(h)', 'Sleep Qual.', 'Activities'];
+    const radarKeys = ['total_calories', 'total_protein_g', 'total_fiber_g', 'total_sugar_g', 'meal_count', 'sleep_duration_h', 'sleep_quality', 'activity_count'];
+    const maxVals = [3000, 150, 40, 60, 6, 12, 100, 5];
+    const radarValues = radarKeys.map((k, i) => Math.min((f[k] || 0) / maxVals[i], 1) * 100);
+
+    new Chart(document.getElementById('chart-person-radar'), {
+      type: 'radar',
+      data: {
+        labels: radarLabels,
+        datasets: [{
+          label: person.name,
+          data: radarValues,
+          borderColor: color,
+          backgroundColor: color + '33',
+          pointBackgroundColor: color,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            ticks: { color: '#8b8fa3', backdropColor: 'transparent' },
+            grid: { color: '#2e3345' },
+            angleLines: { color: '#2e3345' },
+            pointLabels: { color: '#8b8fa3', font: { size: 11 } },
+            max: 100, min: 0,
+          }
+        }
+      }
+    });
+
+    // Metric bar chart
+    const metricKeys = Object.keys(f).filter(k => k.startsWith('metric_'));
+    const metricLabels = metricKeys.map(k => k.replace('metric_', '').replace(/_/g, ' '));
+    const metricValues = metricKeys.map(k => f[k] || 0);
+
+    new Chart(document.getElementById('chart-person-metrics'), {
+      type: 'bar',
+      data: {
+        labels: metricLabels,
+        datasets: [{
+          label: 'Value',
+          data: metricValues,
+          backgroundColor: metricValues.map((v, i) => {
+            const colors = ['#a29bfe', '#74b9ff', '#00b894', '#fdcb6e', '#fd79a8'];
+            return colors[i % colors.length] + 'cc';
+          }),
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' }, min: 0, max: 100 },
+          y: { ticks: { color: '#8b8fa3', font: { size: 11 } }, grid: { display: false } }
+        }
+      }
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="loading" style="color:var(--red);">Analysis failed: ${e.message}<br><small>Please train the models first.</small></div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Anomaly Detection
+// ═══════════════════════════════════════════
+async function loadAnomaly(personId) {
+  const container = document.getElementById('anomaly-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Running anomaly detection...</div>';
+
+  try {
+    const person = PEOPLE.find(p => p.id === personId);
+
+    // Load multiple days
+    const dates = [];
+    const base = new Date('2025-07-01');
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().slice(0,10));
+    }
+
+    const results = await Promise.all(
+      dates.map(d => api(`/ml/anomalies/detect/${encodeURIComponent(personId)}/${d}?days=${DAYS}`).catch(() => null))
+    );
+
+    const validResults = results.filter(r => r);
+    const anomalyCount = validResults.filter(r => r.is_anomaly).length;
+
+    // Chart
+    const chartId = 'chart-anomaly-' + Date.now();
+
+    let tableRows = '';
+    for (let i = 0; i < dates.length; i++) {
+      const r = results[i];
+      if (!r) continue;
+      const badge = r.is_anomaly ? 'badge-red' : 'badge-green';
+      const label = r.is_anomaly ? 'Anomaly' : 'Normal';
+      tableRows += `<tr>
+        <td>${dates[i]}</td>
+        <td>${r.anomaly_score.toFixed(4)}</td>
+        <td><span class="badge ${badge}">${label}</span></td>
+        <td>${r.reasons?.length ? r.reasons.map(r=>`<span class="reason-tag">${r}</span>`).join('') : '-'}</td>
+      </tr>`;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+        <div style="font-size:28px;">${person.emoji}</div>
+        <div>
+          <div style="font-size:16px; font-weight:600;">${person.name} — 2-Week Anomaly Detection</div>
+          <div style="font-size:12px; color:var(--text2);">${anomalyCount}/${validResults.length} days anomaly detected</div>
+        </div>
+      </div>
+
+      <div class="chart-container" style="margin-bottom:20px; height:200px;">
+        <canvas id="${chartId}"></canvas>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Anomaly Score</th><th>Status</th><th>Reason</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+
+    // Draw anomaly score chart
+    new Chart(document.getElementById(chartId), {
+      type: 'line',
+      data: {
+        labels: dates.map(d => d.slice(5)),
+        datasets: [{
+          label: 'Anomaly Score',
+          data: results.map(r => r?.anomaly_score ?? null),
+          borderColor: PERSON_COLORS[personId],
+          backgroundColor: PERSON_COLORS[personId] + '33',
+          fill: true, tension: .3,
+          pointBackgroundColor: results.map(r => r?.is_anomaly ? '#e17055' : '#00b894'),
+          pointRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color:'#8b8fa3' }, grid: { color:'#2e3345' } },
+          y: { ticks: { color:'#8b8fa3' }, grid: { color:'#2e3345' }, min: 0, max: 1 }
+        }
+      }
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="loading" style="color:var(--red);">Anomaly detection failed: ${e.message}<br><small>Please train the anomaly detection model first.</small></div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Food Classification
+// ═══════════════════════════════════════════
+async function loadFoodClassification() {
+  const container = document.getElementById('food-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing 50 foods...</div>';
+
+  const foods = [
+    'banana','apple','orange','strawberry','blueberries',
+    'spinach','broccoli','kale','sweet-potato','carrot',
+    'brown-rice','oatmeal','whole-wheat-bread','quinoa',
+    'chicken-breast','salmon','tofu','eggs','greek-yogurt','almonds',
+    'beef-steak','pork-belly','bacon','sausage',
+    'cheddar-cheese','milk','butter',
+    'walnuts','chia-seeds','peanut-butter',
+    'potato-chips','instant-ramen','pizza','fried-chicken','hamburger',
+    'ice-cream','chocolate-cake','cookies','soda-can','candy',
+    'whey-protein','multivitamin','fish-oil','vitamin-d',
+    'kimchi','miso-soup','avocado','olive-oil','honey','granola-bar',
+  ];
+
+  try {
+    const results = await Promise.all(
+      foods.map(f => api(`/ml/classification/food/food:${f}?days=${DAYS}`).catch(() => null))
+    );
+
+    const categories = { balanced: [], indulgent: [], moderate: [], unknown: [] };
+    results.forEach(r => {
+      if (!r) return;
+      const cat = r.classification || 'unknown';
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(r);
+    });
+
+    const catLabels = { balanced: '🥗 Healthy', indulgent: '🍰 High-cal', moderate: '🥪 Moderate', unknown: '❓ Unclassified' };
+    const catBadges = { balanced: 'badge-green', indulgent: 'badge-red', moderate: 'badge-orange', unknown: 'badge-blue' };
+
+    let html = `
+      <div class="grid grid-4" style="margin-bottom:20px;">
+        ${Object.entries(categories).filter(([_,v])=>v.length).map(([k,v]) => `
+          <div class="card">
+            <div class="card-title">${catLabels[k]||k}</div>
+            <div class="card-value">${v.length}</div>
+            <div class="card-sub">foods</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // Chart
+    const chartId = 'chart-food-' + Date.now();
+    html += `<div class="chart-container" style="margin-bottom:20px; height:240px;"><canvas id="${chartId}"></canvas></div>`;
+
+    // Table
+    const allFoods = results.filter(r => r).sort((a,b) => a.classification.localeCompare(b.classification));
+    html += `<table class="data-table">
+      <thead><tr><th>Food</th><th>Category</th><th>Confidence</th><th>Calories</th><th>Protein</th><th>Sugar</th><th>Fiber</th></tr></thead>
+      <tbody>
+        ${allFoods.map(r => {
+          const n = r.nutritional_profile || {};
+          return `<tr>
+            <td><strong>${r.name}</strong></td>
+            <td><span class="badge ${catBadges[r.classification]||'badge-blue'}">${r.classification}</span></td>
+            <td>${(r.confidence*100).toFixed(0)}%</td>
+            <td>${n.kcal || '-'}</td>
+            <td>${n.protein_g || '-'}g</td>
+            <td>${n.sugar_g || '-'}g</td>
+            <td>${n.fiber_g || '-'}g</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+    container.innerHTML = html;
+
+    // Pie chart
+    const catCounts = Object.entries(categories).filter(([_,v])=>v.length);
+    const pieColors = { balanced: '#00b894', indulgent: '#e17055', moderate: '#fdcb6e', unknown: '#74b9ff' };
+    new Chart(document.getElementById(chartId), {
+      type: 'doughnut',
+      data: {
+        labels: catCounts.map(([k]) => catLabels[k]||k),
+        datasets: [{
+          data: catCounts.map(([_,v]) => v.length),
+          backgroundColor: catCounts.map(([k]) => pieColors[k] || '#666'),
+          borderColor: '#1a1d27', borderWidth: 3,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3', font: { size: 12 } } } }
+      }
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="loading" style="color:var(--red);">Food classification failed: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Prediction
+// ═══════════════════════════════════════════
+async function loadPrediction(personId) {
+  const container = document.getElementById('prediction-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading prediction data...</div>';
+
+  try {
+    const person = PEOPLE.find(p => p.id === personId);
+    const [pred, corr] = await Promise.all([
+      api(`/ml/prediction/metrics/${encodeURIComponent(personId)}/${DATE}?days=${DAYS}`),
+      api(`/ml/anomalies/correlations/${encodeURIComponent(personId)}?days=${DAYS}`),
+    ]);
+
+    const features = pred.input_features || {};
+    const chartId = 'chart-pred-' + Date.now();
+
+    // Correlation chart
+    const corrEntries = Object.entries(corr.correlations || {});
+    const corrChartId = 'chart-corr-' + Date.now();
+
+    container.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+        <div style="font-size:28px;">${person.emoji}</div>
+        <div>
+          <div style="font-size:16px; font-weight:600;">${person.name} — Health Prediction & Correlations</div>
+          <div style="font-size:12px; color:var(--text2);">${DATE} analysis</div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>📊 Input Features (${DATE})</h3>
+        <div class="chart-container" style="height:260px;"><canvas id="${chartId}"></canvas></div>
+      </div>
+
+      <div class="detail-section">
+        <h3>🔗 Behavior-Health Correlations</h3>
+        ${corrEntries.length ?
+          `<div class="chart-container" style="height:200px;"><canvas id="${corrChartId}"></canvas></div>` :
+          '<div style="color:var(--text2); font-size:13px;">No significant correlations</div>'
+        }
+      </div>
+    `;
+
+    // Features radar
+    const featureLabels = ['Calories', 'Protein(g)', 'Fiber(g)', 'Sugar(g)', 'Meals', 'Sleep(h)', 'Sleep Qual.', 'Activities'];
+    const featureKeys = ['total_calories', 'total_protein_g', 'total_fiber_g', 'total_sugar_g', 'meal_count', 'sleep_duration_h', 'sleep_quality', 'activity_count'];
+    const rawValues = featureKeys.map(k => features[k] || 0);
+    const maxVals = [3000, 150, 40, 60, 6, 12, 100, 5];
+    const normValues = rawValues.map((v,i) => Math.min(v / maxVals[i], 1) * 100);
+
+    new Chart(document.getElementById(chartId), {
+      type: 'radar',
+      data: {
+        labels: featureLabels,
+        datasets: [{
+          label: person.name,
+          data: normValues,
+          borderColor: PERSON_COLORS[personId],
+          backgroundColor: PERSON_COLORS[personId] + '33',
+          pointBackgroundColor: PERSON_COLORS[personId],
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            ticks: { color: '#8b8fa3', backdropColor: 'transparent' },
+            grid: { color: '#2e3345' },
+            angleLines: { color: '#2e3345' },
+            pointLabels: { color: '#8b8fa3', font: { size: 11 } },
+            max: 100, min: 0,
+          }
+        }
+      }
+    });
+
+    // Correlation bar chart
+    if (corrEntries.length) {
+      new Chart(document.getElementById(corrChartId), {
+        type: 'bar',
+        data: {
+          labels: corrEntries.map(([k]) => k.replace('->', '→').replace('(+1d)','')),
+          datasets: [{
+            label: 'Correlation',
+            data: corrEntries.map(([_,v]) => v),
+            backgroundColor: corrEntries.map(([_,v]) => v > 0 ? '#00b894cc' : '#e17055cc'),
+            borderColor: corrEntries.map(([_,v]) => v > 0 ? '#00b894' : '#e17055'),
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' }, min: -1, max: 1 },
+            y: { ticks: { color: '#8b8fa3', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+  } catch (e) {
+    container.innerHTML = `<div class="loading" style="color:var(--red);">Prediction failed: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Link Prediction
+// ═══════════════════════════════════════════
+async function loadLinkPredictions() {
+  const container = document.getElementById('links-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing hidden links...</div>';
+
+  try {
+    const data = await api(`/ml/link-prediction/suggest?days=${DAYS}&top_k=20`);
+    const links = data.suggested_links || [];
+
+    container.innerHTML = `
+      <div class="grid grid-4" style="margin-bottom:20px;">
+        <div class="card">
+          <div class="card-title">Links Discovered</div>
+          <div class="card-value">${links.length}</div>
+          <div class="card-sub">Hidden food-health relationships</div>
+        </div>
+      </div>
+      ${links.length ? `
+      <table class="data-table">
+        <thead><tr><th>Source</th><th>Type</th><th>→</th><th>Target</th><th>Type</th><th>Probability</th><th>Description</th></tr></thead>
+        <tbody>
+          ${links.map(l => `<tr>
+            <td>${l.source_label}</td>
+            <td><span class="badge badge-purple">${l.source_type}</span></td>
+            <td>→</td>
+            <td>${l.target_label}</td>
+            <td><span class="badge badge-blue">${l.target_type}</span></td>
+            <td><strong>${(l.probability*100).toFixed(1)}%</strong></td>
+            <td style="font-size:12px; color:var(--text2);">${l.reasoning||'-'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : '<div style="color:var(--text2); font-size:13px; margin-top:12px;">No significant hidden links found at this time.</div>'}
+    `;
+  } catch (e) {
+    container.innerHTML = `<div class="loading" style="color:var(--red);">Link prediction failed: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Ethics & Governance
+// ═══════════════════════════════════════════
+async function loadEthicsAudit() {
+  const container = document.getElementById('ethics-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Running ethics audit...</div>';
+
+  try {
+    const [audit, inventory, retention, minors] = await Promise.all([
+      api(`/ethics/audit?days=${DAYS}`),
+      api(`/ethics/governance/data-inventory?days=${DAYS}`),
+      api(`/ethics/governance/retention?days=${DAYS}`),
+      api(`/ethics/minors/detect?days=${DAYS}`),
+    ]);
+
+    const riskClass = audit.overall_risk === 'low' ? 'risk-low' : audit.overall_risk === 'medium' ? 'risk-medium' : 'risk-high';
+    const riskPct = audit.overall_risk === 'low' ? 30 : audit.overall_risk === 'medium' ? 60 : 90;
+    const riskBadge = audit.overall_risk === 'low' ? 'badge-green' : audit.overall_risk === 'medium' ? 'badge-orange' : 'badge-red';
+
+    container.innerHTML = `
+      <div class="grid grid-4" style="margin-bottom:24px;">
+        <div class="card">
+          <div class="card-title">Overall Risk</div>
+          <div style="font-size:20px; font-weight:700;">
+            <span class="badge ${riskBadge}" style="font-size:14px;">${audit.overall_risk.toUpperCase()}</span>
+          </div>
+          <div class="risk-meter"><div class="risk-meter-fill ${riskClass}" style="width:${riskPct}%"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">PII Found</div>
+          <div class="card-value">${audit.sections?.privacy?.total_pii_found || 0}</div>
+          <div class="card-sub">Personally Identifiable Info</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Minors</div>
+          <div class="card-value">${minors.minors_found || 0}</div>
+          <div class="card-sub">Guardian consent required</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Data Retention</div>
+          <div class="card-value stat-green">${retention.expired_nodes || 0}</div>
+          <div class="card-sub">Expired nodes · ${retention.retention_days}-day policy</div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>⚠️ Risk Factors</h3>
+        ${(audit.risk_factors || []).length ?
+          audit.risk_factors.map(r => `<div class="reason-tag" style="margin-bottom:4px;">${r}</div>`).join('') :
+          '<div style="color:var(--text2); font-size:13px;">No risk factors found</div>'
+        }
+      </div>
+
+      <div class="detail-section">
+        <h3>👧 Minor Protection</h3>
+        ${minors.details?.length ? `
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Role</th><th>Guardian Consent</th></tr></thead>
+          <tbody>
+            ${minors.details.map(m => `<tr>
+              <td>${m.name}</td>
+              <td><span class="badge badge-purple">${m.role}</span></td>
+              <td><span class="badge ${m.requires_guardian_consent ? 'badge-orange' : 'badge-green'}">
+                ${m.requires_guardian_consent ? 'Required' : 'Completed'}
+              </span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>` : '<div style="color:var(--text2); font-size:13px;">No minors found</div>'}
+      </div>
+
+      <div class="detail-section">
+        <h3>📦 Data Inventory</h3>
+        <div class="grid grid-4">
+          ${Object.entries(inventory.node_type_counts || {}).map(([k,v]) => `
+            <div class="card">
+              <div class="card-title">${k}</div>
+              <div class="card-value">${v}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = `<div class="loading" style="color:var(--red);">Ethics audit failed: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Food Photo / OCR Analysis
+// ═══════════════════════════════════════════
+let chartFoodPhotoNutrition = null;
+
+function loadFoodPhotoPage() {
+  // Set default date to today
+  const dateInput = document.getElementById('food-photo-date');
+  if (dateInput && !dateInput.value) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  }
+
+  // Setup drag & drop
+  const preview = document.getElementById('food-photo-preview');
+  if (preview) {
+    preview.addEventListener('dragover', e => { e.preventDefault(); preview.style.borderColor = 'var(--accent)'; });
+    preview.addEventListener('dragleave', () => { preview.style.borderColor = 'var(--border)'; });
+    preview.addEventListener('drop', e => {
+      e.preventDefault();
+      preview.style.borderColor = 'var(--border)';
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const input = document.getElementById('food-photo-input');
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        showFoodPhotoPreview(file);
+      }
+    });
+  }
+}
+
+function handleFoodPhotoSelect(event) {
+  const file = event.target.files[0];
+  if (file) showFoodPhotoPreview(file);
+}
+
+function showFoodPhotoPreview(file) {
+  const img = document.getElementById('food-photo-img');
+  const placeholder = document.getElementById('food-photo-placeholder');
+  const btn = document.getElementById('food-photo-btn');
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.src = e.target.result;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+    btn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearFoodPhoto() {
+  const img = document.getElementById('food-photo-img');
+  const placeholder = document.getElementById('food-photo-placeholder');
+  const btn = document.getElementById('food-photo-btn');
+  const input = document.getElementById('food-photo-input');
+  img.style.display = 'none';
+  img.src = '';
+  placeholder.style.display = '';
+  btn.disabled = true;
+  input.value = '';
+  document.getElementById('food-photo-results').innerHTML = `
+    <div style="text-align:center; padding:40px; color:var(--text2);">
+      <div style="font-size:48px; margin-bottom:12px;">🍽️</div>
+      <div style="font-size:14px;">Upload a food photo or type a meal description</div>
+    </div>`;
+  if (chartFoodPhotoNutrition) { chartFoodPhotoNutrition.destroy(); chartFoodPhotoNutrition = null; }
+}
+
+async function handleFoodPhotoUpload(event) {
+  event.preventDefault();
+  const fileInput = document.getElementById('food-photo-input');
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const btn = document.getElementById('food-photo-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analyzing...';
+  document.getElementById('food-photo-results').innerHTML = '<div class="loading"><div class="spinner"></div>Running OCR & food recognition...</div>';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('person_key', document.getElementById('food-photo-person').value);
+    formData.append('meal_date', document.getElementById('food-photo-date').value || '');
+    formData.append('add_to_graph', document.getElementById('food-photo-add-graph').checked ? 'true' : 'false');
+    formData.append('days', DAYS);
+
+    const res = await fetch('/api/food/analyze-photo', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    displayFoodResults(data);
+  } catch (e) {
+    document.getElementById('food-photo-results').innerHTML = `<div style="color:#e17055; padding:20px;">Analysis failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Analyze Photo';
+  }
+}
+
+async function handleFoodTextAnalysis(event) {
+  event.preventDefault();
+  const text = document.getElementById('food-text-input').value.trim();
+  if (!text) return;
+
+  const resultsDiv = document.getElementById('food-photo-results');
+  resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing food description...</div>';
+
+  try {
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('person_key', document.getElementById('food-photo-person').value);
+    formData.append('meal_date', document.getElementById('food-photo-date').value || '');
+    formData.append('add_to_graph', document.getElementById('food-photo-add-graph').checked ? 'true' : 'false');
+    formData.append('days', DAYS);
+
+    const res = await fetch('/api/food/analyze-text', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    displayFoodResults(data);
+  } catch (e) {
+    resultsDiv.innerHTML = `<div style="color:#e17055; padding:20px;">Analysis failed: ${e.message}</div>`;
+  }
+}
+
+function displayFoodResults(data) {
+  const resultsDiv = document.getElementById('food-photo-results');
+  const foods = data.recognized_foods || [];
+  const total = data.total_nutrition || {};
+
+  if (foods.length === 0) {
+    // Show suggestions from image color analysis if available
+    const analysis = data.image_analysis || {};
+    const suggestions = analysis.suggestions || [];
+    const categories = analysis.categories || [];
+
+    let suggestHTML = '';
+    if (suggestions.length > 0) {
+      const uniqueSuggestions = [];
+      const seen = new Set();
+      suggestions.forEach(s => { if (!seen.has(s.name)) { seen.add(s.name); uniqueSuggestions.push(s); }});
+
+      suggestHTML = `
+        <div style="margin-top:16px;">
+          <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:8px;">
+            🎨 Based on image colors, this might be:
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+            ${categories.map(c => `<span class="badge" style="background:var(--accent)22; color:var(--accent); border:1px solid var(--accent)44; padding:4px 10px;">${c}</span>`).join('')}
+          </div>
+          <div style="font-size:12px; color:var(--text2); margin-bottom:8px;">Click to add to the text input below:</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            ${uniqueSuggestions.map(s => `
+              <button type="button" class="btn btn-outline btn-sm" style="font-size:12px; padding:4px 10px;"
+                onclick="appendFoodSuggestion('${s.name}')">
+                ${s.name} <span style="color:var(--text2); font-size:10px;">${s.kcal}kcal</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>`;
+    }
+
+    // Common food quick-pick grid
+    const quickFoods = ['rice','chicken breast','chicken','beef','pork','salmon','egg','bread',
+      'pasta','salad','broccoli','banana','apple','bibimbap','kimchi jjigae','ramen',
+      'pizza','burger','sushi','tofu','yogurt','milk','coffee','orange juice'];
+
+    resultsDiv.innerHTML = `
+      <div style="padding:20px;">
+        <div style="text-align:center; margin-bottom:16px;">
+          <div style="font-size:36px; margin-bottom:8px;">📸</div>
+          <div style="font-size:14px; color:var(--text);">Photo received — text-based OCR found no readable food labels</div>
+          <div style="font-size:12px; color:var(--text2); margin-top:4px;">OCR works best with menus, receipts, and nutrition labels</div>
+        </div>
+        ${suggestHTML}
+        <div style="margin-top:20px;">
+          <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:8px;">
+            🍱 Quick Pick — click foods in your photo:
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;">
+            ${quickFoods.map(f => `
+              <button type="button" style="padding:5px 10px; font-size:12px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; transition:all 0.2s;"
+                onmouseover="this.style.borderColor='var(--accent)'; this.style.color='var(--accent)'"
+                onmouseout="this.style.borderColor='var(--border)'; this.style.color='var(--text)'"
+                onclick="appendFoodSuggestion('${f}')">${f}</button>
+            `).join('')}
+          </div>
+          <div style="font-size:13px; color:var(--text2); margin-bottom:8px;">
+            ✏️ Or type your own — then click "Analyze Text":
+          </div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="food-quick-input" placeholder="e.g. chicken breast, rice, salad"
+              style="flex:1; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;"
+              onkeyup="if(event.key==='Enter') analyzeQuickInput()">
+            <button type="button" class="btn btn-primary btn-sm" onclick="analyzeQuickInput()">Analyze</button>
+          </div>
+        </div>
+      </div>
+    `;
+    // Also populate the side text input
+    const textInput = document.getElementById('food-text-input');
+    if (textInput) textInput.focus();
+    return;
+  }
+
+  // Summary cards
+  let html = `
+    <div class="grid grid-4" style="margin-bottom:16px;">
+      <div class="card stat-green">
+        <div class="card-title">Foods Found</div>
+        <div class="card-value">${foods.length}</div>
+        <div class="card-sub">via ${data.ocr_engine || 'text'}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total Calories</div>
+        <div class="card-value">${total.kcal?.toLocaleString() || 0}</div>
+        <div class="card-sub">kcal</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Protein</div>
+        <div class="card-value">${total.protein_g?.toFixed(1) || 0}g</div>
+        <div class="card-sub">Fat: ${total.fat_g?.toFixed(1) || 0}g</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Fiber / Sugar</div>
+        <div class="card-value">${total.fiber_g?.toFixed(1) || 0}g</div>
+        <div class="card-sub">Sugar: ${total.sugar_g?.toFixed(1) || 0}g</div>
+      </div>
+    </div>
+  `;
+
+  // Food table
+  const catColors = { fruit: '#00b894', vegetable: '#00cec9', grain: '#fdcb6e', protein: '#e17055', dairy: '#74b9ff', fast_food: '#d63031', korean: '#6c5ce7', japanese: '#fd79a8', snack: '#e84393', beverage: '#0984e3', nuts: '#a29bfe', supplement: '#55efc4', other: '#636e72' };
+
+  html += `<table class="data-table">
+    <thead><tr><th>Food</th><th>Category</th><th>Match</th><th>Calories</th><th>Protein</th><th>Fat</th><th>Fiber</th><th>Sugar</th></tr></thead>
+    <tbody>
+      ${foods.map(f => `<tr>
+        <td><strong>${f.name}</strong></td>
+        <td><span class="badge" style="background:${catColors[f.category] || '#636e72'}22; color:${catColors[f.category] || '#636e72'}; border:1px solid ${catColors[f.category] || '#636e72'}44;">${f.category || '-'}</span></td>
+        <td style="font-size:11px; color:var(--text2);">${f.match_type || '-'}</td>
+        <td>${f.kcal || 0}</td>
+        <td>${f.protein_g || 0}g</td>
+        <td>${f.fat_g || 0}g</td>
+        <td>${f.fiber_g || 0}g</td>
+        <td>${f.sugar_g || 0}g</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  // Graph integration result
+  if (data.graph_integration) {
+    const gi = data.graph_integration;
+    html += `<div style="margin-top:12px; padding:12px; background:#00b89422; border-radius:8px; font-size:13px; color:#00b894;">
+      ✅ Added to graph: ${gi.nodes_added} nodes, ${gi.edges_added} edges (total: ${gi.total_graph_nodes} nodes)
+    </div>`;
+  }
+
+  resultsDiv.innerHTML = html;
+
+  // Update nutrition chart
+  if (chartFoodPhotoNutrition) chartFoodPhotoNutrition.destroy();
+  const canvas = document.getElementById('chart-food-photo-nutrition');
+  if (canvas && foods.length > 0) {
+    chartFoodPhotoNutrition = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: foods.map(f => f.name),
+        datasets: [
+          { label: 'Calories', data: foods.map(f => f.kcal || 0), backgroundColor: '#a29bfecc', borderRadius: 4 },
+          { label: 'Protein (g)', data: foods.map(f => f.protein_g || 0), backgroundColor: '#e17055cc', borderRadius: 4 },
+          { label: 'Fat (g)', data: foods.map(f => f.fat_g || 0), backgroundColor: '#fdcb6ecc', borderRadius: 4 },
+          { label: 'Sugar (g)', data: foods.map(f => f.sugar_g || 0), backgroundColor: '#fd79a8cc', borderRadius: 4 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#8b8fa3', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#8b8fa3', font: { size: 10 } }, grid: { color: '#2e3345' } },
+          y: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } },
+        }
+      }
+    });
+  }
+}
+
+function appendFoodSuggestion(foodName) {
+  const quickInput = document.getElementById('food-quick-input');
+  const textInput = document.getElementById('food-text-input');
+  // Add to quick input if it exists and is visible
+  if (quickInput) {
+    const current = quickInput.value.trim();
+    quickInput.value = current ? current + ', ' + foodName : foodName;
+    quickInput.focus();
+  }
+  // Also add to the main text input
+  if (textInput) {
+    const current = textInput.value.trim();
+    textInput.value = current ? current + ', ' + foodName : foodName;
+  }
+}
+
+async function analyzeQuickInput() {
+  const input = document.getElementById('food-quick-input');
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+
+  // Copy to main text input and trigger analysis
+  const textInput = document.getElementById('food-text-input');
+  if (textInput) textInput.value = text;
+
+  const resultsDiv = document.getElementById('food-photo-results');
+  resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing food description...</div>';
+
+  try {
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('person_key', document.getElementById('food-photo-person').value);
+    formData.append('meal_date', document.getElementById('food-photo-date').value || '');
+    formData.append('add_to_graph', document.getElementById('food-photo-add-graph').checked ? 'true' : 'false');
+    formData.append('days', DAYS);
+
+    const res = await fetch('/api/food/analyze-text', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    displayFoodResults(data);
+  } catch (e) {
+    resultsDiv.innerHTML = `<div style="color:#e17055; padding:20px;">Analysis failed: ${e.message}</div>`;
+  }
+}
+
+async function searchFoodDB() {
+  const query = document.getElementById('food-db-search').value.trim();
+  if (!query) return;
+  const resultsDiv = document.getElementById('food-db-results');
+  resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const data = await api(`/api/food/search/${encodeURIComponent(query)}`);
+    if (data.count === 0) {
+      resultsDiv.innerHTML = `<div style="color:var(--text2); padding:12px;">No results for "${query}"</div>`;
+      return;
+    }
+    resultsDiv.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Food</th><th>Category</th><th>Calories</th><th>Protein</th><th>Fat</th><th>Fiber</th><th>Sugar</th></tr></thead>
+        <tbody>
+          ${data.results.map(f => `<tr>
+            <td><strong>${f.name}</strong></td>
+            <td><span class="badge badge-blue">${f.category || '-'}</span></td>
+            <td>${f.kcal || 0} kcal</td>
+            <td>${f.protein_g || 0}g</td>
+            <td>${f.fat_g || 0}g</td>
+            <td>${f.fiber_g || 0}g</td>
+            <td>${f.sugar_g || 0}g</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    resultsDiv.innerHTML = `<div style="color:#e17055;">Search failed: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Apple Health Import
+// ═══════════════════════════════════════════
+async function loadAppleHealth() {
+  const container = document.getElementById('apple-health-content');
+
+  // Fetch existing imports
+  let imports = [];
+  try {
+    const data = await api('/api/apple-health/imported');
+    imports = data.imports || [];
+  } catch (e) { /* ignore */ }
+
+  // Fetch supported types
+  let supportedCount = 0;
+  try {
+    const types = await api('/api/apple-health/supported-types');
+    supportedCount = types.total_supported || 0;
+  } catch (e) { /* ignore */ }
+
+  container.innerHTML = `
+    <div class="grid grid-2" style="gap:24px;">
+      <!-- Upload Section -->
+      <div class="detail-section" style="grid-column: 1 / -1;">
+        <h3>📤 Upload Apple Health Data</h3>
+        <div style="background:var(--surface2); border-radius:12px; padding:20px; margin-top:12px;">
+          <div style="display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:300px;">
+              <p style="color:var(--text2); font-size:13px; line-height:1.6; margin-bottom:16px;">
+                How to export Apple Health data from iPhone:<br>
+                <strong style="color:var(--text);">Health App</strong> →
+                Top-right <strong style="color:var(--text);">Profile Picture</strong> →
+                <strong style="color:var(--text);">Export All Health Data</strong><br>
+                Unzip the generated <code style="background:var(--surface); padding:2px 6px; border-radius:4px;">export.zip</code> file
+                and upload the <code style="background:var(--surface); padding:2px 6px; border-radius:4px;">export.xml</code> file below.
+              </p>
+
+              <form id="apple-health-form" onsubmit="handleAppleHealthUpload(event)" style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                  <div style="flex:1; min-width:200px;">
+                    <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Person Key</label>
+                    <input type="text" name="person_key" required placeholder="e.g. mia, alex"
+                      style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+                  </div>
+                  <div style="flex:1; min-width:200px;">
+                    <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Name (optional)</label>
+                    <input type="text" name="person_name" placeholder="e.g. Mia, Alex"
+                      style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+                  </div>
+                </div>
+                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                  <div style="flex:1; min-width:140px;">
+                    <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Role</label>
+                    <select name="person_role"
+                      style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+                      <option value="child">Child</option>
+                      <option value="parent">Parent</option>
+                    </select>
+                  </div>
+                  <div style="flex:1; min-width:140px;">
+                    <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Start Date (optional)</label>
+                    <input type="date" name="date_from"
+                      style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+                  </div>
+                  <div style="flex:1; min-width:140px;">
+                    <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">End Date (optional)</label>
+                    <input type="date" name="date_to"
+                      style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+                  </div>
+                </div>
+                <div>
+                  <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">export.xml File</label>
+                  <input type="file" name="file" accept=".xml" required id="apple-health-file-input"
+                    style="width:100%; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;">
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <label style="font-size:13px; color:var(--text2); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" name="merge_with_synthetic"
+                      style="width:16px; height:16px; accent-color:var(--accent);">
+                    Merge with existing synthetic data
+                  </label>
+                </div>
+                <div style="display:flex; gap:12px; align-items:center;">
+                  <button type="submit" class="btn btn-primary" id="upload-btn">
+                    📤 Upload & Import
+                  </button>
+                  <span id="upload-status" style="font-size:13px; color:var(--text2);"></span>
+                </div>
+              </form>
+            </div>
+
+            <div style="min-width:200px; background:var(--surface); border-radius:10px; padding:16px;">
+              <div style="font-size:13px; font-weight:600; margin-bottom:8px;">Supported Data Types</div>
+              <div style="font-size:12px; color:var(--text2); line-height:1.8;">
+                ❤️ Heart Rate / Resting HR / HRV<br>
+                🚶 Steps / Walking Distance<br>
+                😴 Sleep Analysis (by stage)<br>
+                ⚡ Active Energy / Basal Metabolic<br>
+                🏋️ Workout Records (20+ types)<br>
+                ⚖️ Body Weight / BMI<br>
+                🫁 VO2 Max / SpO2<br>
+                🩸 Blood Pressure / Blood Glucose<br>
+                🥗 Dietary Nutrients<br>
+                🔢 Total <strong style="color:var(--text);">${supportedCount}</strong> types
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload Progress -->
+      <div id="upload-progress-section" style="display:none; grid-column: 1 / -1;" class="detail-section">
+        <h3>⏳ Processing...</h3>
+        <div style="background:var(--surface2); border-radius:12px; padding:20px;">
+          <div id="upload-progress-bar" style="height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">
+            <div id="upload-progress-fill" style="height:100%; width:0%; background:var(--accent); border-radius:3px; transition:width 0.5s;"></div>
+          </div>
+          <div id="upload-progress-text" style="margin-top:8px; font-size:13px; color:var(--text2);"></div>
+        </div>
+      </div>
+
+      <!-- Imported Data -->
+      <div class="detail-section" style="grid-column: 1 / -1;">
+        <h3>📂 Imported Data</h3>
+        ${imports.length ? `
+          <div class="grid grid-3" style="margin-top:12px;">
+            ${imports.map(imp => `
+              <div class="card" style="position:relative;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                  <span style="font-size:24px;">🍎</span>
+                  <div>
+                    <div style="font-weight:600; font-size:15px;">${imp.person_key}</div>
+                    <div style="font-size:11px; color:var(--text2);">imported ${new Date(imp.imported_at).toLocaleDateString('en-US')}</div>
+                  </div>
+                </div>
+                <div style="display:flex; gap:16px; font-size:13px; color:var(--text2);">
+                  <span>📊 ${imp.nodes.toLocaleString()} nodes</span>
+                  <span>🔗 ${imp.edges.toLocaleString()} edges</span>
+                  <span>💾 ${imp.file_size_kb} KB</span>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                  <button class="btn btn-outline btn-sm" onclick="viewImportedGraph('${imp.person_key}')">
+                    📊 Details
+                  </button>
+                  <button class="btn btn-outline btn-sm" onclick="analyzeImported('${imp.person_key}')">
+                    🔮 ML Analysis
+                  </button>
+                  <button class="btn btn-sm" style="color:#e17055; border:1px solid #e17055;" onclick="deleteImported('${imp.person_key}')">
+                    🗑️ Delete
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="text-align:center; padding:40px; color:var(--text2);">
+            <div style="font-size:48px; margin-bottom:12px;">🍎</div>
+            <div style="font-size:15px;">No imported Apple Health data yet.</div>
+            <div style="font-size:13px; margin-top:4px;">Upload an export.xml file above to get started.</div>
+          </div>
+        `}
+      </div>
+
+      <!-- Analysis Results -->
+      <div id="apple-health-analysis" style="display:none; grid-column: 1 / -1;" class="detail-section">
+      </div>
+    </div>
+  `;
+}
+
+async function handleAppleHealthUpload(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = document.getElementById('upload-btn');
+  const status = document.getElementById('upload-status');
+  const progressSection = document.getElementById('upload-progress-section');
+  const progressFill = document.getElementById('upload-progress-fill');
+  const progressText = document.getElementById('upload-progress-text');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Uploading...';
+  progressSection.style.display = 'block';
+  progressFill.style.width = '20%';
+  progressText.textContent = 'Sending XML file to server...';
+
+  try {
+    const formData = new FormData(form);
+
+    progressFill.style.width = '40%';
+    progressText.textContent = 'Parsing Apple Health data... (large files may take a while)';
+
+    const res = await fetch('/api/apple-health/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    progressFill.style.width = '80%';
+    progressText.textContent = 'Building graph...';
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const result = await res.json();
+
+    progressFill.style.width = '100%';
+    progressText.textContent = 'Complete!';
+
+    toast(`🍎 Apple Health import successful! ${result.stats.days_imported} days of data, ${result.stats.nodes_created} nodes`, 'success');
+
+    // Show stats
+    status.innerHTML = `
+      <span style="color:#00b894;">✅ ${result.stats.days_imported} days · ${result.stats.nodes_created} nodes · ${result.stats.edges_created} edges</span>
+    `;
+
+    // Refresh the list
+    setTimeout(() => {
+      progressSection.style.display = 'none';
+      loadAppleHealth();
+    }, 1500);
+
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+    status.innerHTML = `<span style="color:#e17055;">❌ ${e.message}</span>`;
+    progressSection.style.display = 'none';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📤 Upload & Import';
+  }
+}
+
+async function viewImportedGraph(personKey) {
+  const section = document.getElementById('apple-health-analysis');
+  section.style.display = 'block';
+  section.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+  try {
+    const data = await api(`/api/apple-health/graph/${personKey}`);
+
+    const typeEntries = Object.entries(data.node_types || {});
+
+    section.innerHTML = `
+      <h3>📊 ${personKey} — Imported Graph Details</h3>
+      <div class="grid grid-4" style="margin-top:12px;">
+        <div class="card">
+          <div class="card-title">Total Nodes</div>
+          <div class="card-value">${data.total_nodes.toLocaleString()}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Total Edges</div>
+          <div class="card-value">${data.total_edges.toLocaleString()}</div>
+        </div>
+        ${typeEntries.map(([t, c]) => `
+          <div class="card">
+            <div class="card-title">${t}</div>
+            <div class="card-value">${c.toLocaleString()}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (e) {
+    section.innerHTML = `<div style="color:#e17055;">Error: ${e.message}</div>`;
+  }
+}
+
+async function analyzeImported(personKey) {
+  const section = document.getElementById('apple-health-analysis');
+  section.style.display = 'block';
+  section.innerHTML = '<div class="loading"><div class="spinner"></div>Running ML analysis... (first run may take time for model training)</div>';
+
+  try {
+    // First get graph info to find a recent date
+    const graphInfo = await api(`/api/apple-health/graph/${personKey}`);
+
+    // Use the analysis endpoint
+    const data = await fetch(`/api/apple-health/analyze/${personKey}?date=2025-07-01`, {method:'POST'}).then(r => r.json());
+
+    let predHTML = '';
+    if (data.prediction && !data.prediction.error) {
+      const preds = data.prediction.predictions || {};
+      predHTML = `
+        <div class="card">
+          <div class="card-title">🔮 Health Prediction</div>
+          ${Object.entries(preds).map(([k, v]) => `
+            <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:13px;">
+              <span style="color:var(--text2);">${k.replace('metric_','')}</span>
+              <span style="font-weight:600;">${v.toFixed(1)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else {
+      predHTML = `<div class="card"><div class="card-title">🔮 Health Prediction</div><div style="color:var(--text2); font-size:13px;">${data.prediction?.error || 'Insufficient data'}</div></div>`;
+    }
+
+    let corrHTML = '';
+    if (data.correlations && !data.correlations.error) {
+      const corrs = data.correlations.correlations || {};
+      corrHTML = `
+        <div class="card">
+          <div class="card-title">🔗 Correlations</div>
+          ${Object.entries(corrs).map(([k, v]) => `
+            <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12px;">
+              <span style="color:var(--text2);">${k.replace('->','→')}</span>
+              <span style="color:${v > 0 ? '#00b894' : '#e17055'}; font-weight:600;">${v.toFixed(3)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    let anomalyHTML = '';
+    if (data.anomaly && !data.anomaly.error) {
+      const isAnomaly = data.anomaly.is_anomaly;
+      anomalyHTML = `
+        <div class="card">
+          <div class="card-title">⚠️ Anomaly Detection</div>
+          <div style="font-size:20px; font-weight:700; color:${isAnomaly ? '#e17055' : '#00b894'};">
+            ${isAnomaly ? 'Anomaly Detected' : 'Normal'}
+          </div>
+          <div style="font-size:13px; color:var(--text2);">Score: ${(data.anomaly.anomaly_score || 0).toFixed(3)}</div>
+        </div>
+      `;
+    }
+
+    section.innerHTML = `
+      <h3>🔮 ${personKey} — ML Analysis Results</h3>
+      <div class="grid grid-3" style="margin-top:12px;">
+        ${predHTML}
+        ${corrHTML}
+        ${anomalyHTML}
+      </div>
+    `;
+  } catch (e) {
+    section.innerHTML = `<div style="color:#e17055;">Analysis failed: ${e.message}</div>`;
+  }
+}
+
+async function deleteImported(personKey) {
+  if (!confirm(`Delete imported data for '${personKey}'?`)) return;
+  try {
+    const res = await fetch(`/api/apple-health/graph/${personKey}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Delete failed');
+    toast(`🗑️ ${personKey} data deleted`, 'success');
+    loadAppleHealth();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Train All Models
+// ═══════════════════════════════════════════
+async function trainAllModels() {
+  toast('🧠 Starting model training...');
+  const btn = document.querySelector('[onclick="trainAllModels()"]');
+  btn.disabled = true;
+  btn.textContent = '⏳ Training...';
+
+  try {
+    await apiPost(`/ml/embeddings/train?days=${DAYS}`);
+    toast('✅ Embedding training complete');
+
+    for (const p of PEOPLE) {
+      await apiPost(`/ml/anomalies/train?days=${DAYS}&person_id=${encodeURIComponent(p.id)}`);
+    }
+    toast('✅ Anomaly detection training complete');
+
+    await apiPost(`/ml/prediction/train?days=${DAYS}&person_id=${encodeURIComponent(PEOPLE[0].id)}`);
+    toast('✅ Prediction model training complete');
+
+    await apiPost(`/ml/link-prediction/train?days=${DAYS}`);
+    toast('✅ Link prediction training complete');
+
+    await apiPost(`/ml/classification/train?days=${DAYS}`);
+    toast('✅ Classification training complete');
+
+    toast('🎉 All models trained successfully!');
+
+    // Reload dashboard
+    loadedPages.clear();
+    loadDashboard();
+  } catch (e) {
+    toast('❌ Training failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🧠 Train All Models';
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Health Goals & Recommendations
+// ═══════════════════════════════════════════
+let _recCurrentPerson = 'leo';
+
+async function loadRecommendations() {
+  loadRecForPerson('leo');
+}
+
+async function loadRecForPerson(personKey) {
+  _recCurrentPerson = personKey;
+  const el = document.getElementById('rec-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading recommendations...</div>';
+
+  // Update active tab
+  document.querySelectorAll('#rec-tabs .person-tab').forEach(t => t.classList.remove('active'));
+  const activeTab = document.querySelector(`#rec-tabs .person-tab[data-person="person:${personKey}"]`);
+  if (activeTab) activeTab.classList.add('active');
+
+  try {
+    const [compare, recs] = await Promise.all([
+      api(`/api/recommendations/${personKey}/compare/${DATE}?days=${DAYS}`),
+      api(`/api/recommendations/${personKey}?date=${DATE}&days=${DAYS}`),
+    ]);
+    renderRecommendations(el, compare, recs);
+  } catch(e) {
+    el.innerHTML = `<div class="card"><p style="color:var(--danger)">Failed to load: ${e.message}</p></div>`;
+  }
+}
+
+function renderRecommendations(el, compare, recs) {
+  const profile = recs.profile;
+  const targets = compare.targets;
+  const comp = compare.comparison;
+  const score = compare.overall_score;
+
+  // ── Status colour ──
+  const scoreColor = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--danger)';
+
+  // ── Build status icon ──
+  function statusIcon(st) {
+    if (st === 'optimal') return '<span style="color:var(--success)">✅</span>';
+    if (st === 'low') return '<span style="color:var(--warning)">⬇️</span>';
+    if (st === 'high' || st === 'slightly_high') return '<span style="color:var(--danger)">⬆️</span>';
+    return '➖';
+  }
+  function barHtml(pct, status) {
+    const c = status === 'optimal' ? 'var(--success)' : status === 'low' ? 'var(--warning)' : 'var(--danger)';
+    const w = Math.min(pct, 150);
+    return `<div style="background:var(--border);border-radius:6px;height:10px;width:100%;position:relative;overflow:hidden;">
+      <div style="background:${c};height:100%;width:${w}%;border-radius:6px;transition:width .5s;"></div>
+      <div style="position:absolute;left:${Math.min(100, 100)}%;top:-2px;width:2px;height:14px;background:var(--text);opacity:.4;"></div>
+    </div>`;
+  }
+
+  // ── Profile Card ──
+  const profileHtml = `
+    <div class="card" style="text-align:center;">
+      <div style="font-size:48px;">${PEOPLE.find(p=>p.id==='person:'+_recCurrentPerson)?.emoji || '👤'}</div>
+      <h3 style="margin:8px 0 4px;">${profile.name}</h3>
+      <div class="subtitle">${profile.role} · Age ${profile.age} · ${profile.gender}</div>
+      <div class="subtitle" style="margin-top:4px;">Activity: <strong>${profile.activity_level.replace('_',' ')}</strong> · ${profile.weight_kg || targets.profile.weight_kg}kg · ${profile.height_cm || targets.profile.height_cm}cm</div>
+      <div style="margin-top:16px;">
+        <div style="font-size:36px;font-weight:700;color:${scoreColor};">${score}</div>
+        <div class="subtitle">Health Score (out of 100)</div>
+      </div>
+    </div>`;
+
+  // ── Radar Chart ──
+  const radarHtml = `<div class="card"><div class="card-title">Current vs. Ideal</div>
+    <canvas id="rec-radar" height="280"></canvas></div>`;
+
+  // ── Gap Table ──
+  let gapRows = '';
+  const labels = {
+    calories: 'Calories', protein: 'Protein', fiber: 'Fiber',
+    sugar: 'Sugar (max)', sleep: 'Sleep', calories_burned: 'Calories Burned', activity_sessions: 'Activity Sessions',
+  };
+  for (const [k, v] of Object.entries(comp)) {
+    gapRows += `<tr>
+      <td><strong>${labels[k] || k}</strong></td>
+      <td style="text-align:right;">${Math.round(v.current)} ${v.unit}</td>
+      <td style="text-align:right;">${Math.round(v.target)} ${v.unit}</td>
+      <td style="width:140px;">${barHtml(v.pct, v.status)}</td>
+      <td style="text-align:center;">${statusIcon(v.status)}</td>
+      <td style="text-align:right;color:${v.status==='optimal'?'var(--success)':'var(--warning)'};">${v.pct}%</td>
+    </tr>`;
+  }
+  const gapHtml = `<div class="card"><div class="card-title">📊 Gap Analysis</div>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead><tr style="border-bottom:2px solid var(--border);text-align:left;">
+        <th style="padding:8px 6px;">Metric</th><th style="text-align:right;padding:8px 6px;">Current</th>
+        <th style="text-align:right;padding:8px 6px;">Target</th><th style="padding:8px 6px;">Progress</th>
+        <th style="text-align:center;padding:8px 6px;">Status</th><th style="text-align:right;padding:8px 6px;">%</th>
+      </tr></thead>
+      <tbody>${gapRows}</tbody>
+    </table></div></div>`;
+
+  // ── Daily Targets Card ──
+  const dt = targets.daily_targets;
+  const targetsHtml = `<div class="card"><div class="card-title">🎯 Ideal Daily Targets</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-top:8px;">
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${dt.calories_kcal}</div><div class="subtitle">Calories (kcal)</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${dt.protein_g}g</div><div class="subtitle">Protein</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${dt.carbs_g}g</div><div class="subtitle">Carbs</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${dt.fat_g}g</div><div class="subtitle">Fat</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${dt.fiber_g}g</div><div class="subtitle">Fiber</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">&le;${dt.sugar_max_g}g</div><div class="subtitle">Sugar (max)</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${dt.water_ml}ml</div><div class="subtitle">Water</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${targets.sleep.recommended_hours}h</div><div class="subtitle">Sleep</div></div>
+      <div class="card" style="padding:12px;text-align:center;"><div class="card-value">${targets.exercise.recommended_min_per_day}m</div><div class="subtitle">Exercise</div></div>
+    </div>
+    <p style="margin-top:10px;font-size:13px;color:var(--text-muted);">${targets.exercise.note}</p>
+  </div>`;
+
+  // ── Lifestyle Tips ──
+  let tipsHtml = '';
+  if (recs.lifestyle_tips && recs.lifestyle_tips.length) {
+    tipsHtml = `<div class="card"><div class="card-title">💡 Lifestyle Tips</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+        ${recs.lifestyle_tips.map(t => `<div style="display:flex;gap:10px;align-items:center;padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--border);">
+          <span style="font-size:24px;">${t.icon}</span><span>${t.tip}</span></div>`).join('')}
+      </div></div>`;
+  }
+
+  // ── Food Recommendations ──
+  let foodHtml = '';
+  if (recs.food_recommendations && recs.food_recommendations.length) {
+    const foodCards = recs.food_recommendations.map(f => `
+      <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+        <div style="font-weight:600;text-transform:capitalize;margin-bottom:4px;">${f.name}</div>
+        <div style="font-size:12px;color:var(--text-muted);">${f.benefit || ''}</div>
+        ${f.kcal !== undefined ? `<div style="font-size:12px;margin-top:4px;"><strong>${f.kcal}</strong> kcal · <strong>${f.protein_g}</strong>g protein</div>` : ''}
+        <div style="font-size:11px;color:var(--primary);margin-top:4px;">${f.reason}</div>
+      </div>`).join('');
+    foodHtml = `<div class="card"><div class="card-title">🥗 Food Recommendations</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:8px;">${foodCards}</div></div>`;
+  }
+
+  // ── Exercise Recommendations ──
+  let exerciseHtml = '';
+  if (recs.exercise_recommendations && recs.exercise_recommendations.length) {
+    const exRows = recs.exercise_recommendations.map(ex => `<tr>
+      <td style="padding:6px;"><strong>${ex.name}</strong></td>
+      <td style="padding:6px;">${ex.type}</td>
+      <td style="padding:6px;text-align:center;">${ex.intensity}</td>
+      <td style="padding:6px;text-align:right;">${ex.cal_per_30min} kcal/30m</td>
+      <td style="padding:6px;font-size:12px;">${ex.benefit}</td>
+      <td style="padding:6px;font-size:12px;color:var(--primary);">${ex.note || ''}</td>
+    </tr>`).join('');
+    exerciseHtml = `<div class="card"><div class="card-title">🏋️ Exercise Recommendations</div>
+      <div style="overflow-x:auto;margin-top:8px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:2px solid var(--border);">
+          <th style="padding:6px;text-align:left;">Activity</th><th style="padding:6px;text-align:left;">Type</th>
+          <th style="padding:6px;text-align:center;">Intensity</th><th style="padding:6px;text-align:right;">Burn</th>
+          <th style="padding:6px;text-align:left;">Benefit</th><th style="padding:6px;text-align:left;">Note</th>
+        </tr></thead>
+        <tbody>${exRows}</tbody>
+      </table></div></div>`;
+  }
+
+  // ── Supplement Recommendations ──
+  let suppHtml = '';
+  if (recs.supplement_recommendations && recs.supplement_recommendations.length) {
+    const suppCards = recs.supplement_recommendations.map(s => {
+      const prColor = s.priority === 'high' ? 'var(--danger)' : s.priority === 'medium' ? 'var(--warning)' : 'var(--text-muted)';
+      return `<div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;border-left:4px solid ${prColor};">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <strong>${s.name}</strong>
+          <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:${prColor};color:white;">${s.priority}</span>
+        </div>
+        <div style="font-size:12px;margin-top:4px;">${s.dose}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${s.benefit}</div>
+        <div style="font-size:11px;margin-top:4px;"><em>When: ${s.when}</em></div>
+        ${s.relevance ? `<div style="font-size:11px;color:var(--primary);margin-top:2px;">→ ${s.relevance}</div>` : ''}
+      </div>`;
+    }).join('');
+    suppHtml = `<div class="card"><div class="card-title">💊 Supplement Recommendations</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:8px;">${suppCards}</div></div>`;
+  }
+
+  // ── Micronutrient Targets ──
+  const micro = targets.micronutrients;
+  const microHtml = `<div class="card"><div class="card-title">🔬 Micronutrient Targets</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px;">
+      <div class="card" style="padding:10px;text-align:center;"><div class="card-value">${micro.calcium_mg}mg</div><div class="subtitle">Calcium</div></div>
+      <div class="card" style="padding:10px;text-align:center;"><div class="card-value">${micro.iron_mg}mg</div><div class="subtitle">Iron</div></div>
+      <div class="card" style="padding:10px;text-align:center;"><div class="card-value">${micro.vitamin_d_iu}IU</div><div class="subtitle">Vitamin D</div></div>
+      <div class="card" style="padding:10px;text-align:center;"><div class="card-value">${micro.omega3_mg}mg</div><div class="subtitle">Omega-3</div></div>
+      <div class="card" style="padding:10px;text-align:center;"><div class="card-value">${micro.vitamin_c_mg}mg</div><div class="subtitle">Vitamin C</div></div>
+    </div></div>`;
+
+  // ── Combine ──
+  el.innerHTML = `
+    <div class="grid grid-2" style="gap:20px;">
+      ${profileHtml}
+      ${radarHtml}
+    </div>
+    ${gapHtml}
+    ${targetsHtml}
+    ${tipsHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      ${microHtml}
+      <div></div>
+    </div>
+    ${foodHtml}
+    ${exerciseHtml}
+    ${suppHtml}
+  `;
+
+  // ── Radar Chart ──
+  const radarCtx = document.getElementById('rec-radar');
+  if (radarCtx) {
+    const radarLabels = Object.keys(comp).map(k => labels[k] || k);
+    const currentData = Object.values(comp).map(v => Math.min(v.pct, 150));
+    const idealData = Object.values(comp).map(() => 100);
+
+    new Chart(radarCtx, {
+      type: 'radar',
+      data: {
+        labels: radarLabels,
+        datasets: [
+          {
+            label: 'Current',
+            data: currentData,
+            backgroundColor: 'rgba(108, 92, 231, 0.2)',
+            borderColor: '#6c5ce7',
+            borderWidth: 2,
+            pointRadius: 4,
+          },
+          {
+            label: 'Ideal (100%)',
+            data: idealData,
+            backgroundColor: 'rgba(0, 184, 148, 0.1)',
+            borderColor: '#00b894',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            pointRadius: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          r: {
+            beginAtZero: true,
+            max: 150,
+            ticks: { stepSize: 25, color: '#888', font: { size: 10 } },
+            grid: { color: 'rgba(255,255,255,0.1)' },
+            pointLabels: { font: { size: 11 }, color: '#ccc' },
+          }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#ccc', font: { size: 12 } } },
+        }
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Status Bar
+// ═══════════════════════════════════════════
+function updateStatus(state, info) {
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  const infoEl = document.getElementById('status-info');
+  dot.className = `status-dot ${state}`;
+  text.textContent = state === 'online' ? 'Server Connected' : 'Server Offline';
+  infoEl.textContent = info || '';
+}
+
+// Initial health check
+async function checkHealth() {
+  try {
+    const h = await api('/health');
+    updateStatus('online', `v${h.version} · ${new Date(h.timestamp).toLocaleTimeString()}`);
+  } catch {
+    updateStatus('offline', 'Cannot connect to server');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════
+checkHealth();
+loadDashboard();
+loadedPages.add('dashboard');
+</script>
+</body>
+</html>

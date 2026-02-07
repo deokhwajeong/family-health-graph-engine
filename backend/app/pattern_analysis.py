@@ -49,11 +49,14 @@ class HealthMetricPredictor:
         """
         from .graph_embeddings import extract_day_features
         
+        # Normalize person_id: "person:alex" -> "alex"
+        normalized = person_id.split(":")[-1] if ":" in person_id else person_id
+        
         # Get all days
         day_nodes = sorted([
             node for node in G.nodes()
             if G.nodes[node].get("type") == "day" and 
-            node.startswith(f"day:{person_id}:")
+            node.startswith(f"day:{normalized}:")
         ])
         
         if len(day_nodes) < self.prediction_window + 5:
@@ -232,11 +235,14 @@ class AssociationRuleAnalyzer:
         """
         from .graph_embeddings import extract_day_features
         
+        # Normalize person_id: "person:alex" -> "alex"
+        normalized = person_id.split(":")[-1] if ":" in person_id else person_id
+        
         # Get all days
         day_nodes = sorted([
             node for node in G.nodes()
             if G.nodes[node].get("type") == "day" and 
-            node.startswith(f"day:{person_id}:")
+            node.startswith(f"day:{normalized}:")
         ])
         
         if len(day_nodes) < 10:
@@ -292,7 +298,7 @@ class AssociationRuleAnalyzer:
                 for i in range(len(dates)):
                     # Check if all antecedent items are present
                     antecedent_match = all(
-                        cat in categorical_data[key.split("_")[0]][i]
+                        cat in categorical_data[key.rsplit("_", 1)[0]][i]
                         for key in antecedent
                         for cat in [key]
                     )
@@ -302,7 +308,7 @@ class AssociationRuleAnalyzer:
                         
                         # Check if all consequent items are present
                         consequent_match = all(
-                            cat in categorical_data[key.split("_")[0]][i]
+                            cat in categorical_data[key.rsplit("_", 1)[0]][i]
                             for key in consequent
                             for cat in [key]
                         )

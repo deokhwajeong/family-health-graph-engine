@@ -235,6 +235,7 @@ class GraphBuilder:
         value: float,
         unit: str,
         timestamp: str,
+        day_id: str | None = None,
         **extra: Any,
     ) -> str:
         self.add_node(
@@ -248,8 +249,12 @@ class GraphBuilder:
             **extra,
         )
 
-        # person -> metric (no day node required)
+        # person -> metric
         self.add_edge(person_id, metric_id, EDGE_HAS_METRIC)
+
+        # day -> metric (needed for extract_day_features)
+        if day_id and day_id in self.G:
+            self.add_edge(day_id, metric_id, EDGE_HAS_METRIC)
 
         return metric_id
 

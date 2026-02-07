@@ -78,11 +78,15 @@ class HealthLinkPredictor:
         else:
             features.append(0.5)
         
-        # Distance in graph (shorter = more likely to have relationship)
-        try:
-            distance = nx.shortest_path_length(G.to_undirected(), node1, node2)
-            features.append(max(0, 1.0 - distance / 10.0))
-        except (nx.NetworkXNoPath, nx.NodeNotFound):
+        # Distance in graph (approximate via neighbor overlap instead of shortest path)
+        # Using Jaccard-like measure — much faster than shortest_path_length
+        neighbors1_set = set(G.successors(node1)) | set(G.predecessors(node1))
+        neighbors2_set = set(G.successors(node2)) | set(G.predecessors(node2))
+        union_size = len(neighbors1_set | neighbors2_set)
+        if union_size > 0:
+            jaccard = len(neighbors1_set & neighbors2_set) / union_size
+            features.append(jaccard)
+        else:
             features.append(0.0)
         
         # Temporal correlation (for time-based nodes)
@@ -111,39 +115,43 @@ class HealthLinkPredictor:
     def fit(self, G: nx.DiGraph) -> None:
         """
         Fit link prediction model using existing edges as positive examples
-        and non-existing edges as negative examples.
+        and randomly sampled non-existing edges as negative examples.
+        Uses sampling to avoid O(N²) complexity.
         """
+        import random
+        random.seed(42)
+        
         X_list = []
         y_list = []
         
-        # Get all node pairs
         nodes = list(G.nodes())
         
-        # Positive examples (existing edges)
-        for u, v in G.edges():
+        # Positive examples: sample edges if too many
+        all_edges = list(G.edges())
+        max_pos = min(len(all_edges), 2000)
+        sampled_edges = random.sample(all_edges, max_pos) if len(all_edges) > max_pos else all_edges
+        
+        for u, v in sampled_edges:
             features = self._extract_node_pair_features(G, u, v)
             X_list.append(features)
-            y_list.append(1)  # positive
+            y_list.append(1)
         
-        # Negative examples (non-existing edges)
-        # Sample random non-edges
+        # Negative examples: random sampling (not O(N²) iteration)
         existing_edges = set(G.edges()) | set((v, u) for u, v in G.edges())
-        
+        max_negatives = len(sampled_edges) * 2
         negative_count = 0
-        max_negatives = len(G.edges()) * 3  # 3:1 ratio
+        attempts = 0
+        max_attempts = max_negatives * 10
         
-        for i, u in enumerate(nodes):
-            for v in nodes[i+1:]:
-                if (u, v) not in existing_edges and (v, u) not in existing_edges:
-                    features = self._extract_node_pair_features(G, u, v)
-                    X_list.append(features)
-                    y_list.append(0)  # negative
-                    
-                    negative_count += 1
-                    if negative_count >= max_negatives:
-                        break
-            if negative_count >= max_negatives:
-                break
+        while negative_count < max_negatives and attempts < max_attempts:
+            u = random.choice(nodes)
+            v = random.choice(nodes)
+            if u != v and (u, v) not in existing_edges and (v, u) not in existing_edges:
+                features = self._extract_node_pair_features(G, u, v)
+                X_list.append(features)
+                y_list.append(0)
+                negative_count += 1
+            attempts += 1
         
         if len(X_list) < 5:
             raise ValueError("Not enough examples to fit link prediction model")
@@ -165,50 +173,65 @@ class HealthLinkPredictor:
     def predict_links(self, G: nx.DiGraph, top_k: int = 10) -> List[Dict]:
         """
         Predict potential new links that should be added to the graph.
-        
-        Args:
-            G: NetworkX graph
-            top_k: number of top predictions to return
-        
-        Returns:
-            List of predicted links with scores
+        Only checks semantically meaningful type pairs to avoid O(N²).
         """
         if not self.is_fitted:
             raise RuntimeError("Model not fitted. Call fit() first.")
         
         predictions = []
-        
-        # Get existing edges
         existing_edges = set(G.edges()) | set((v, u) for u, v in G.edges())
         
-        # Check all non-existing edges
-        nodes = list(G.nodes())
+        # Only check meaningful type pairs (not all N² pairs)
+        interesting_pairs = [
+            ("food", "metric"),
+            ("food", "activity"),
+            ("sleep", "metric"),
+            ("activity", "metric"),
+            ("meal", "metric"),
+        ]
         
-        for i, u in enumerate(nodes):
-            for j, v in enumerate(nodes):
-                if i != j and (u, v) not in existing_edges:
+        # Group nodes by type
+        nodes_by_type: Dict[str, List[str]] = {}
+        for n in G.nodes():
+            t = G.nodes[n].get("type", "")
+            nodes_by_type.setdefault(t, []).append(n)
+        
+        import random
+        random.seed(42)
+        
+        for type1, type2 in interesting_pairs:
+            src_nodes = nodes_by_type.get(type1, [])
+            tgt_nodes = nodes_by_type.get(type2, [])
+            
+            # Sample if too many candidates
+            max_candidates = 200
+            if len(src_nodes) * len(tgt_nodes) > max_candidates:
+                sampled_src = random.sample(src_nodes, min(len(src_nodes), 30))
+                sampled_tgt = random.sample(tgt_nodes, min(len(tgt_nodes), 30))
+            else:
+                sampled_src, sampled_tgt = src_nodes, tgt_nodes
+            
+            for u in sampled_src:
+                for v in sampled_tgt:
+                    if (u, v) in existing_edges:
+                        continue
                     features = self._extract_node_pair_features(G, u, v)
                     X_scaled = self.scaler.transform(features.reshape(1, -1))
-                    
-                    # Get probability of link
                     prob = self.model.predict_proba(X_scaled)[0, 1]
                     
-                    if prob > 0.3:  # threshold
-                        u_data = G.nodes[u]
-                        v_data = G.nodes[v]
-                        
-                        predictions.append({
-                            "source": u,
-                            "source_type": u_data.get("type"),
-                            "source_label": u_data.get("name", u),
-                            "target": v,
-                            "target_type": v_data.get("type"),
-                            "target_label": v_data.get("name", v),
-                            "probability": float(prob),
-                            "reasoning": self._explain_prediction(G, u, v, prob)
-                        })
+                    u_data = G.nodes[u]
+                    v_data = G.nodes[v]
+                    predictions.append({
+                        "source": u,
+                        "source_type": u_data.get("type"),
+                        "source_label": u_data.get("name", u),
+                        "target": v,
+                        "target_type": v_data.get("type"),
+                        "target_label": v_data.get("name", v),
+                        "probability": float(prob),
+                        "reasoning": self._explain_prediction(G, u, v, prob)
+                    })
         
-        # Sort by probability and return top K
         predictions.sort(key=lambda x: x["probability"], reverse=True)
         return predictions[:top_k]
     

@@ -37,7 +37,8 @@ class HealthAnomalyDetector:
         )
         self.lof = LocalOutlierFactor(
             n_neighbors=min(20, max(3, int(10 / contamination))),
-            contamination=contamination
+            contamination=contamination,
+            novelty=True
         )
         self.scaler = StandardScaler()
         
@@ -56,11 +57,14 @@ class HealthAnomalyDetector:
         """
         from .graph_embeddings import extract_day_features
         
+        # Normalize person_id: "person:alex" -> "alex"
+        normalized = person_id.split(":")[-1] if ":" in person_id else person_id
+        
         # Find all day nodes for this person
         day_nodes = [
             node for node in G.nodes()
             if G.nodes[node].get("type") == "day" and 
-            node.startswith(f"day:{person_id}:")
+            node.startswith(f"day:{normalized}:")
         ]
         
         features_list = []
@@ -176,7 +180,7 @@ class HealthAnomalyDetector:
         # Get anomaly score
         X_scaled = self.scaler.transform(X)
         iso_score = self.iso_forest.score_samples(X_scaled)[0]
-        lof_score = self.lof._decision_function(X_scaled)[0]
+        lof_score = self.lof.decision_function(X_scaled)[0]
         
         # Normalize
         iso_norm = (iso_score - self.iso_forest.offset_) / max(abs(self.iso_forest.offset_), 1.0)
@@ -262,11 +266,14 @@ class PatternCorrelationAnalyzer:
         """
         from .graph_embeddings import extract_day_features
         
+        # Normalize person_id: "person:alex" -> "alex"
+        normalized = person_id.split(":")[-1] if ":" in person_id else person_id
+        
         # Get all days
         day_nodes = sorted([
             node for node in G.nodes()
             if G.nodes[node].get("type") == "day" and 
-            node.startswith(f"day:{person_id}:")
+            node.startswith(f"day:{normalized}:")
         ])
         
         if len(day_nodes) < self.lag_days + 2:

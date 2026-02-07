@@ -1,30 +1,30 @@
 # Household Health Graph Engine - ML Implementation Guide
 
-## 개요
+## Overview
 
-이 프로젝트는 가족의 건강 패턴을 그래프 기반으로 분석하고 머신러닝으로 인사이트를 도출하는 시스템입니다.
+This project analyzes family health patterns using a graph-based approach and derives insights through machine learning.
 
-**Data Add → Learn → Predict** 구조로 설계되었습니다:
-1. **Add**: 매일의 식사, 수면, 활동 데이터를 그래프 노드로 추가
-2. **Learn**: 데이터로부터 패턴을 학습
-3. **Predict**: 미래의 건강 상태를 예측하고 이상을 탐지
+Designed with a **Data Add → Learn → Predict** architecture:
+1. **Add**: Daily meals, sleep, and activity data are added as graph nodes
+2. **Learn**: Patterns are extracted from accumulated data
+3. **Predict**: Future health states are predicted and anomalies detected
 
 ---
 
-## 구현된 ML 기능
+## Implemented ML Features
 
 ### 1. **Graph Embedding (GraphSAGE)**
 ```python
 GET /ml/embeddings/daily/{person_id}/{date}
 ```
-- **목적**: 매일의 건강 행동을 벡터 임베딩으로 표현
-- **알고리즘**: 이웃 노드 정보를 2개 레이어로 집계하는 GraphSAGE 변형
-- **특징**:
-  - 식사, 수면, 활동 정보를 종합한 일일 임베딩
-  - 노드 타입별 특정 피처 추출 (weekday, sleep quality, calories 등)
-  - 의미있는 건강 패턴 벡터 표현
+- **Purpose**: Represent daily health behaviors as vector embeddings
+- **Algorithm**: GraphSAGE variant that aggregates neighbor node information across 2 layers
+- **Features**:
+  - Daily embeddings combining meal, sleep, and activity information
+  - Type-specific feature extraction per node type (weekday, sleep quality, calories, etc.)
+  - Meaningful health pattern vector representation
 
-**사용 예**:
+**Usage Example**:
 ```bash
 curl http://localhost:8000/ml/embeddings/daily/person:mia/2024-12-15
 ```
@@ -36,17 +36,17 @@ curl http://localhost:8000/ml/embeddings/daily/person:mia/2024-12-15
 GET /ml/anomalies/detect/{person_id}/{date}
 POST /ml/anomalies/train
 ```
-- **목적**: 개인의 평소 패턴과 다른 비정상 날을 탐지
-- **알고리즘**: 
-  - **Isolation Forest**: 전역 아웃라이어 탐지 (극단적인 행동)
-  - **Local Outlier Factor**: 국소 밀도 기반 이상 탐지
-- **탐지 지표**:
-  - 매우 낮은 수면 (< 6시간)
-  - 극단적인 칼로리 섭취 (< 1000 또는 > 4000 kcal)
-  - 높은 설탕 섭취 (> 100g)
-  - 활동과 영양의 불균형
+- **Purpose**: Detect days that deviate from a person's normal patterns
+- **Algorithms**:
+  - **Isolation Forest**: Global outlier detection (extreme behaviors)
+  - **Local Outlier Factor**: Local density-based anomaly detection
+- **Detection Criteria**:
+  - Very low sleep duration (< 6 hours)
+  - Extreme calorie intake (< 1000 or > 4000 kcal)
+  - High sugar consumption (> 100g)
+  - Imbalance between activity and nutrition
 
-**반환 예**:
+**Response Example**:
 ```json
 {
   "anomaly_score": 0.75,
@@ -58,35 +58,35 @@ POST /ml/anomalies/train
 }
 ```
 
-**상관관계 분석**:
+**Correlation Analysis**:
 ```python
 GET /ml/anomalies/correlations/{person_id}
 ```
-- 수면 질과 집중력의 관계
-- 단백질 섭취와 에너지 레벨의 관계
-- 활동 빈도와 수면 시간의 관계
+- Relationship between sleep quality and focus
+- Relationship between protein intake and energy level
+- Relationship between activity frequency and sleep duration
 
 ---
 
 ### 3. **Pattern Analysis & Prediction**
 
-#### 3.1 메트릭 예측
+#### 3.1 Metric Prediction
 ```python
 GET /ml/prediction/metrics/{person_id}/{date}
 ```
-- **목적**: 현재 일의 행동으로부터 다음날 에너지, 집중력, 기분 예측
-- **알고리즘**: 다변량 선형회귀
-- **입력 피처**:
-  - 총 칼로리, 단백질, 섬유소, 설탕
-  - 수면 시간, 수면 질
-  - 활동 횟수, 활동 강도, 소모 칼로리
-- **출력**: 
-  - 예상 에너지 레벨 (0-100)
-  - 예상 집중력 점수 (0-100)
-  - 예상 기분 (0-100)
-  - 피처 중요도
+- **Purpose**: Predict next-day energy, focus, and mood from current-day behaviors
+- **Algorithm**: Multivariate Linear Regression
+- **Input Features**:
+  - Total calories, protein, fiber, sugar
+  - Sleep duration, sleep quality
+  - Activity count, activity intensity, calories burned
+- **Output**:
+  - Predicted energy level (0-100)
+  - Predicted focus score (0-100)
+  - Predicted mood (0-100)
+  - Feature importance
 
-**반환 예**:
+**Response Example**:
 ```json
 {
   "predictions": {
@@ -106,13 +106,13 @@ GET /ml/prediction/metrics/{person_id}/{date}
 ```python
 GET /ml/patterns/association-rules/{person_id}
 ```
-- **목적**: "높은 단백질 + 충분한 수면 → 높은 집중력" 같은 규칙 발견
-- **알고리즘**: 이진 특징에 대한 빈도 기반 규칙 마이닝
-- **평가 지표**:
-  - **Support**: 규칙이 성립하는 일의 비율
-  - **Confidence**: 조건이 참일 때 결론이 참일 확률
+- **Purpose**: Discover rules like "high protein + sufficient sleep → high focus"
+- **Algorithm**: Frequency-based rule mining on binary features
+- **Evaluation Metrics**:
+  - **Support**: Proportion of days where the rule holds
+  - **Confidence**: Probability of the conclusion being true when the condition is true
 
-**반환 예**:
+**Response Example**:
 ```json
 {
   "rules": [
@@ -133,19 +133,19 @@ GET /ml/patterns/association-rules/{person_id}
 GET /ml/link-prediction/suggest
 POST /ml/link-prediction/train
 ```
-- **목적**: 아직 연결되지 않은 노드 간의 숨은 관계 발견
-- **예시**:
-  - "브로콜리" → "고집중력" (아직 추가 안 됨)
-  - "야간 고설탕 식사" → "수면 부족" 
+- **Purpose**: Discover hidden relationships between unconnected nodes
+- **Examples**:
+  - "Broccoli" → "High focus" (not yet connected)
+  - "Late-night high-sugar meal" → "Sleep deficit"
 
-- **알고리즘**: 로지스틱 회귀 + 노드 쌍 특징:
-  - 타입 호환성 (식품-메트릭이 연결되기 쉬움)
-  - 공통 이웃 수
-  - 영양학적 적합성 (고단백 → 높은 집중력)
-  - 그래프 거리
-  - 시간적 근접도
+- **Algorithm**: Logistic Regression + node pair features:
+  - Type compatibility (food-metric pairs are more likely to connect)
+  - Common neighbor count
+  - Nutritional compatibility (high protein → high focus)
+  - Graph distance
+  - Temporal proximity
 
-**반환 예**:
+**Response Example**:
 ```json
 {
   "suggested_links": [
@@ -165,18 +165,18 @@ POST /ml/link-prediction/train
 
 ### 5. **Node Classification**
 
-#### 5.1 음식 영양 분류
+#### 5.1 Food Nutrition Classification
 ```python
 GET /ml/classification/food/{food_id}
 ```
-- **카테고리**: "healthy" / "balanced" / "indulgent"
-- **기준**:
-  - 단백질 함량
-  - 섬유소 함량
-  - 설탕 함량
-  - 영양 밀도
+- **Categories**: "healthy" / "balanced" / "indulgent"
+- **Criteria**:
+  - Protein content
+  - Fiber content
+  - Sugar content
+  - Nutritional density
 
-**반환 예**:
+**Response Example**:
 ```json
 {
   "food_id": "food:salmon",
@@ -193,28 +193,28 @@ GET /ml/classification/food/{food_id}
 }
 ```
 
-#### 5.2 활동 강도 분류
+#### 5.2 Activity Intensity Classification
 ```python
 GET /ml/classification/activity/{activity_id}
 ```
-- **카테고리**: "light" / "moderate" / "vigorous"
-- **기준**:
-  - 지속 시간
-  - 강도 레벨
-  - 소모 칼로리
+- **Categories**: "light" / "moderate" / "vigorous"
+- **Criteria**:
+  - Duration
+  - Intensity level
+  - Calories burned
 
-#### 5.3 일일 건강 상태 분류
+#### 5.3 Daily Health Status Classification
 ```python
 GET /ml/classification/daily-status/{person_id}/{date}
 ```
-- **카테고리**: "optimal" / "good" / "fair" / "concerning"
-- **평가 차원**:
-  - 수면 (시간, 질)
-  - 영양 (칼로리, 단백질, 섬유소)
-  - 활동 (빈도, 강도)
-  - 결과 메트릭 (에너지, 집중력, 기분)
+- **Categories**: "optimal" / "good" / "fair" / "concerning"
+- **Evaluation Dimensions**:
+  - Sleep (duration, quality)
+  - Nutrition (calories, protein, fiber)
+  - Activity (frequency, intensity)
+  - Outcome metrics (energy, focus, mood)
 
-**반환 예**:
+**Response Example**:
 ```json
 {
   "classification": "good",
@@ -233,124 +233,124 @@ GET /ml/classification/daily-status/{person_id}/{date}
 
 ---
 
-## 통합 대시보드 엔드포인트
+## Integrated Dashboard Endpoints
 
-### 일일 종합 인사이트
+### Daily Comprehensive Insight
 ```python
 GET /ml/insights/daily/{person_id}/{date}
 ```
-모든 ML 모델의 결과를 종합한 일일 대시보드:
-- 일일 피처 (식사, 수면, 활동)
-- 현재 건강 상태 분류
-- 이상 탐지 여부 및 원인
-- 내일 예상 지표
-- 중요 영향 요인
+A daily dashboard combining results from all ML models:
+- Daily features (meals, sleep, activity)
+- Current health status classification
+- Anomaly detection results and causes
+- Next-day predicted metrics
+- Key influencing factors
 
-### 개인 종합 요약
+### Personal Summary
 ```python
 GET /ml/summary/{person_id}
 ```
-장기 패턴 분석:
-- 상위 5개 행동 인사이트
-- 상위 5개 건강 규칙
-- 기록된 데이터 통계
+Long-term pattern analysis:
+- Top 5 behavioral insights
+- Top 5 health rules
+- Recorded data statistics
 
 ---
 
-## 빠른 시작
+## Quick Start
 
-### 1. 환경 설정
+### 1. Environment Setup
 ```bash
-# 의존성 설치
+# Install dependencies
 pip install -r backend/requirements.txt
 
-# 모든 ML 모델 학습
+# Train all ML models
 python backend/train_models.py
 ```
 
-출력 예:
+Expected output:
 ```
 [1/7] Training GraphSAGE embeddings...
-✓ GraphSAGE model saved
+ GraphSAGE model saved
 [2/7] Training anomaly detector...
-✓ Anomaly detector trained (5 anomalies detected)
+ Anomaly detector trained (5 anomalies detected)
 ...
 ML PIPELINE TRAINING COMPLETE
 ```
 
-### 2. API 실행
+### 2. Run API Server
 ```bash
 cd backend
 uvicorn main:app --reload
 ```
 
-### 3. 테스트
+### 3. Test
 ```bash
-# 일일 인사이트 조회
+# Daily insight query
 curl "http://localhost:8000/ml/insights/daily/person:mia/2024-12-15"
 
-# 음식 분류
+# Food classification
 curl "http://localhost:8000/ml/classification/food/food:salmon"
 
-# 이상 탐지
+# Anomaly detection
 curl "http://localhost:8000/ml/anomalies/detect/person:mia/2024-12-15"
 
-# 다음날 메트릭 예측
+# Next-day metric prediction
 curl "http://localhost:8000/ml/prediction/metrics/person:mia/2024-12-15"
 ```
 
 ---
 
-## 데이터 흐름
+## Data Flow
 
 ```
 User Input (Meal, Sleep, Activity)
-          ↓
+          |
     [Add to Graph]
-          ↓
-  GraphX DiGraph Structure
-          ↓
+          |
+  NetworkX DiGraph Structure
+          |
     [ML Processing]
-    ├─ GraphSAGE → Embedding
-    ├─ Isolation Forest + LOF → Anomalies
-    ├─ LinearRegression → Predictions
-    ├─ Logistic Regression → Link Prediction
-    └─ RandomForest → Classification
-          ↓
+    |- GraphSAGE -> Embedding
+    |- Isolation Forest + LOF -> Anomalies
+    |- LinearRegression -> Predictions
+    |- Logistic Regression -> Link Prediction
+    +- RandomForest -> Classification
+          |
    [Generate Insights]
-   ├─ Daily Status
-   ├─ Anomaly Alert
-   ├─ Next Day Forecast
-   └─ Recommendations
-          ↓
+   |- Daily Status
+   |- Anomaly Alert
+   |- Next Day Forecast
+   +- Recommendations
+          |
    Dashboard / API Response
 ```
 
 ---
 
-## 모델 저장 및 로드
+## Model Storage and Loading
 
-모든 ML 모델은 `backend/models/` 디렉토리에 joblib 형식으로 저장됩니다:
+All ML models are saved in joblib format under the `backend/models/` directory:
 
 ```
 backend/models/
-├── graph_sage.pkl              # GraphSAGE 임베딩 모델
-├── anomaly_detector.pkl        # 이상 탐지 모델
-├── metric_predictor.pkl        # 메트릭 예측 모델
-├── link_predictor.pkl          # 링크 예측 모델
-├── food_classifier.pkl         # 음식 분류기
-└── activity_classifier.pkl     # 활동 분류기
+|- graph_sage.pkl              # GraphSAGE embedding model
+|- anomaly_detector.pkl        # Anomaly detection model
+|- metric_predictor.pkl        # Metric prediction model
+|- link_predictor.pkl          # Link prediction model
+|- food_classifier.pkl         # Food classifier
++- activity_classifier.pkl     # Activity classifier
 ```
 
-API는 모델이 없으면 자동으로 학습하고 저장합니다.
+The API automatically trains and saves models if they don't already exist.
 
 ---
 
-## 알고리즘 상세
+## Algorithm Details
 
 ### GraphSAGE
 ```python
-# 간소화된 구현
+# Simplified implementation
 def aggregate_neighbors(node, layer):
     neighbor_embeddings = [embed[n] for n in neighbors(node)]
     return mean(neighbor_embeddings)
@@ -359,63 +359,63 @@ embedding[node] = (embedding[node] + aggregate_neighbors(node)) / 2
 ```
 
 ### Anomaly Detection
-- **Isolation Forest**: 의사결정 트리로 이상치를 고립시킴
-- **LOF (Local Outlier Factor)**: 주변 점들의 밀도와 비교
+- **Isolation Forest**: Isolates anomalies using decision tree partitioning
+- **LOF (Local Outlier Factor)**: Compares local density against neighboring points
 
-### 메트릭 예측
+### Metric Prediction
 ```
-y (next day energy) = β₀ + β₁·sleep_quality + β₂·protein + β₃·activity + ...
+y (next day energy) = b0 + b1*sleep_quality + b2*protein + b3*activity + ...
 ```
 
 ---
 
-## 확장 가능성
+## Future Roadmap
 
-### 다음 단계
-1. **Graph Neural Networks (GNN)** 업그레이드
-   - PyTorch Geometric 사용
+### Next Steps
+1. **Graph Neural Networks (GNN)** Upgrade
+   - PyTorch Geometric integration
    - Graph Attention Networks (GAT)
-   
-2. **시계열 예측**
-   - LSTM / Transformer 기반 다중 단계 예측
-   
-3. **개인화 추천**
-   - 협필터링 + 그래프 기반 추천
-   
-4. **실시간 학습**
-   - 온라인 학습 알고리즘
-   - 새 데이터 추가 시 점진적 모델 업데이트
+
+2. **Time Series Forecasting**
+   - LSTM / Transformer-based multi-step prediction
+
+3. **Personalized Recommendations**
+   - Collaborative filtering + graph-based recommendations
+
+4. **Online Learning**
+   - Incremental learning algorithms
+   - Gradual model updates as new data is added
 
 ---
 
-## 파일 구조
+## File Structure
 
 ```
 backend/
-├── main.py                  # FastAPI 애플리케이션 + 모든 엔드포인트
-├── train_models.py          # ML 모델 학습 파이프라인
-├── requirements.txt         # Python 의존성
-├── app/
-│   ├── __init__.py
-│   ├── graph_builder.py     # 그래프 구조 정의
-│   ├── synthetic_data.py    # 60일 합성 데이터 생성
-│   ├── graph_embeddings.py  # GraphSAGE 임베딩
-│   ├── anomaly_detection.py # 이상 탐지 + 상관관계 분석
-│   ├── pattern_analysis.py  # 메트릭 예측 + 규칙 발견
-│   ├── link_prediction.py   # 링크 예측
-│   └── node_classifier.py   # 노드 분류 (음식, 활동, 상태)
-└── models/                  # 저장된 ML 모델 (자동 생성)
-    ├── graph_sage.pkl
-    ├── anomaly_detector.pkl
-    ├── metric_predictor.pkl
-    ├── link_predictor.pkl
-    ├── food_classifier.pkl
-    └── activity_classifier.pkl
+|- main.py                  # FastAPI application + all endpoints
+|- train_models.py          # ML model training pipeline
+|- requirements.txt         # Python dependencies
+|- app/
+|   |- __init__.py
+|   |- graph_builder.py     # Graph schema definition
+|   |- synthetic_data.py    # 90-day synthetic data generation
+|   |- graph_embeddings.py  # GraphSAGE embeddings
+|   |- anomaly_detection.py # Anomaly detection + correlation analysis
+|   |- pattern_analysis.py  # Metric prediction + rule discovery
+|   |- link_prediction.py   # Link prediction
+|   +- node_classifier.py   # Node classification (food, activity, status)
++- models/                  # Saved ML models (auto-generated)
+    |- graph_sage.pkl
+    |- anomaly_detector.pkl
+    |- metric_predictor.pkl
+    |- link_predictor.pkl
+    |- food_classifier.pkl
+    +- activity_classifier.pkl
 ```
 
 ---
 
-## 참고 문헌
+## References
 
 - GraphSAGE: Hamilton et al. "Inductive Representation Learning on Large Graphs"
 - Isolation Forest: Liu et al. "Isolation Forest"
@@ -423,6 +423,6 @@ backend/
 
 ---
 
-**작성자**: AI Assistant  
-**마지막 업데이트**: 2025-01-18  
-**버전**: 0.2.0 (ML enabled)
+**Author**: AI Assistant
+**Last Updated**: 2026-02-07
+**Version**: 0.2.0 (ML enabled)

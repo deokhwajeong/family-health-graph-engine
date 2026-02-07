@@ -1,223 +1,340 @@
 # backend/app/graph_viz.py
+"""
+Graph visualization utilities.
+Renders NetworkX graphs as SVG images and provides JSON data for interactive JS visualizations.
+"""
 import io
+import json
 import re
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 import matplotlib
 matplotlib.use("Agg")  # headless environments
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import networkx as nx
 
 
 DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
 
+# ─── Shared palette ───
+TYPE_COLORS = {
+    "household": "#1f77b4",
+    "person":    "#ff7f0e",
+    "day":       "#2ca02c",
+    "activity":  "#17becf",
+    "meal":      "#d62728",
+    "sleep":     "#9467bd",
+    "food":      "#e377c2",
+    "metric":    "#bcbd22",
+    "other":     "#7f7f7f",
+}
+
+TYPE_SIZES = {
+    "household": 300,
+    "person":    250,
+    "day":       100,
+    "activity":  80,
+    "meal":      60,
+    "sleep":     80,
+    "food":      50,
+    "metric":    40,
+    "other":     40,
+}
+
 
 def _infer_node_type(node_id: str) -> str:
-    """
-    Infer a coarse node type from the node id string.
-
-    Examples:
-        "household:demo-family"                -> "household"
-        "person:mia"                          -> "person"
-        "day:mia:2025-01-01"                  -> "day"
-        "meal:mia:2025-01-01:breakfast"       -> "meal"
-        "food:banana"                           -> "food"
-        "activity:mia:2025-01-01:walk"        -> "activity"
-        "sleep:mia:2025-01-01"                -> "sleep"
-    """
     if isinstance(node_id, str) and ":" in node_id:
         return node_id.split(":", 1)[0]
     return "other"
 
 
 def _extract_date(node_id: str) -> Optional[str]:
-    """
-    Extract a YYYY-MM-DD date string from the node id if present.
-    Returns None if no date is found.
-    """
     if not isinstance(node_id, str):
         return None
     m = DATE_PATTERN.search(node_id)
-    if m:
-        return m.group(0)
-    return None
+    return m.group(0) if m else None
 
 
 def _short_label(node_id: str) -> str:
-    """
-    Produce a shorter, more readable label for visualization.
-
-    Strategy:
-        - For day nodes: show just the date (2025-01-01)
-        - For meal nodes: show meal type (breakfast / lunch / dinner / snack)
-        - For others: show the last segment after ':'
-    """
     if not isinstance(node_id, str):
         return str(node_id)
-
     parts = node_id.split(":")
-
     if len(parts) == 1:
         return node_id
-
     node_type = parts[0]
-
     if node_type == "day":
-        # day:mia:2025-01-01 -> 2025-01-01
         date_str = _extract_date(node_id)
-        return date_str if date_str is not None else parts[-1]
-
+        return date_str if date_str else parts[-1]
     if node_type == "meal":
-        # meal:mia:2025-01-01:breakfast -> breakfast
         return parts[-1]
-
-    # Default: last segment
+    if node_type == "metric":
+        return parts[-1] if len(parts) > 1 else node_id
     return parts[-1]
 
 
+# ═══════════════════════════════════════════
+#  Layout computation
+# ═══════════════════════════════════════════
+
 def _compute_vertical_timeline_layout(G: nx.Graph) -> Dict[str, List[float]]:
-    """
-    Compute a vertical timeline layout.
+    """Vertical timeline layout: Y = date, X = node type column."""
+    node_types = {n: _infer_node_type(n) for n in G.nodes}
 
-    - Y axis: time (date) flowing downward
-    - X axis: node type columns
-      household | person | day | activity | meal | sleep | food
-
-    Nodes without a date (household, person, some foods) are placed
-    at aggregated positions (top row for household/person, average
-    of neighbor dates for foods).
-    """
-    node_types: Dict[str, str] = {n: _infer_node_type(n) for n in G.nodes}
-
-    # 1. Collect all dates from nodes that have one
-    dates: List[str] = []
+    dates = []
     for n in G.nodes:
         d = _extract_date(str(n))
         if d is not None:
             dates.append(d)
 
     unique_dates = sorted(set(dates))
-    date_to_index: Dict[str, int] = {d: i for i, d in enumerate(unique_dates)}
+    date_to_index = {d: i for i, d in enumerate(unique_dates)}
 
-    # If we somehow have no dates at all, fall back to spring layout
     if not unique_dates:
         return nx.spring_layout(G, seed=42)
 
-    # Vertical spacing between days
-    y_step = -1.5  # negative so time flows downward
+    y_step = -1.5
     base_y = 0.0
 
     def y_for_date(date_str: str) -> float:
-        idx = date_to_index[date_str]
-        return base_y + y_step * idx
+        return base_y + y_step * date_to_index[date_str]
 
-    # 2. Define x-position per node type (columns)
     type_to_x = {
-        "household": -2.0,
-        "person": -1.0,
-        "day": 0.0,
-        "activity": 1.0,
-        "meal": 2.0,
-        "sleep": 3.0,
-        "food": 4.0,
-        "other": 5.0,
+        "household": -3.0,
+        "person":    -2.0,
+        "day":        0.0,
+        "sleep":      1.5,
+        "activity":   3.0,
+        "meal":       4.5,
+        "food":       6.5,
+        "metric":    -1.0,
+        "other":      8.0,
     }
 
     pos: Dict[str, List[float]] = {}
 
-    # 3. First place day nodes (they define the main timeline)
+    # Place day nodes
     for n in G.nodes:
-        t = node_types[n]
-        if t == "day":
-            date_str = _extract_date(str(n))
-            if date_str is None:
-                continue
-            x = type_to_x.get("day", 0.0)
-            y = y_for_date(date_str)
-            pos[n] = [x, y]
+        if node_types[n] == "day":
+            d = _extract_date(str(n))
+            if d:
+                pos[n] = [type_to_x["day"], y_for_date(d)]
 
-    # 4. Place dated event nodes (activity, meal, sleep)
+    # Place dated event nodes
+    counters: Dict[str, int] = {}
     for n in G.nodes:
         t = node_types[n]
-        if t in {"activity", "meal", "sleep"}:
-            date_str = _extract_date(str(n))
-            if date_str is None:
+        if t in {"activity", "meal", "sleep", "metric"}:
+            d = _extract_date(str(n))
+            if d is None:
                 continue
             x = type_to_x.get(t, type_to_x["other"])
-            y = y_for_date(date_str)
-
-            # small horizontal jitter to avoid perfect overlap
-            jitter = (hash(n) % 7) * 0.04
+            y = y_for_date(d)
+            key = f"{t}:{d}"
+            counters[key] = counters.get(key, 0) + 1
+            jitter = counters[key] * 0.15
             pos[n] = [x + jitter, y]
 
-    # 5. Place food nodes: align with the average of their neighbors' dates
+    # Place food nodes at average neighbor date
     for n in G.nodes:
-        t = node_types[n]
-        if t != "food":
+        if node_types[n] != "food":
             continue
-
-        neighbor_dates = [
-            _extract_date(str(nb))
-            for nb in G.neighbors(n)
-            if _extract_date(str(nb)) is not None
-        ]
-        neighbor_dates = [d for d in neighbor_dates if d is not None]
-
+        neighbor_dates = []
+        for nb in list(G.predecessors(n)) + list(G.neighbors(n)):
+            d = _extract_date(str(nb))
+            if d and d in date_to_index:
+                neighbor_dates.append(d)
         if neighbor_dates:
-            # average date index
-            idx_values = [date_to_index[d] for d in neighbor_dates]
-            avg_idx = sum(idx_values) / len(idx_values)
+            avg_idx = sum(date_to_index[d] for d in neighbor_dates) / len(neighbor_dates)
             y = base_y + y_step * avg_idx
         else:
-            # if no dated neighbors, put them near the top
             y = base_y + y_step * (-1)
+        jitter = (hash(n) % 7) * 0.12
+        pos[n] = [type_to_x["food"] + jitter, y]
 
-        x = type_to_x.get("food", type_to_x["other"])
-        jitter = (hash(n) % 5) * 0.05
-        pos[n] = [x + jitter, y]
-
-    # 6. Place household and person nodes near the top above the first day
-    min_y = min(v[1] for v in pos.values())
-
+    # Household and person
+    min_y = min(v[1] for v in pos.values()) if pos else 0
     for n in G.nodes:
         t = node_types[n]
         if t in {"household", "person"}:
-            x = type_to_x.get(t, type_to_x["other"])
-            # place them above the earliest date row
-            y = min_y + 1.5 if t == "person" else min_y + 2.5
-            pos[n] = [x, y]
+            x = type_to_x.get(t, 0)
+            y = min_y + (2.5 if t == "household" else 1.5)
+            jitter = (hash(n) % 5) * 0.3
+            pos[n] = [x + jitter, y]
 
-    # 7. Any remaining nodes (other) get a default position
+    # Remaining
     for n in G.nodes:
         if n not in pos:
             t = node_types[n]
             x = type_to_x.get(t, type_to_x["other"])
-            y = base_y
-            pos[n] = [x, y]
+            pos[n] = [x, base_y]
 
     return pos
 
 
+# ═══════════════════════════════════════════
+#  SVG Rendering (matplotlib)
+# ═══════════════════════════════════════════
+
 def graph_to_svg(G: nx.Graph) -> bytes:
-    """
-    Render a NetworkX graph as an SVG image and return the raw SVG bytes.
+    """Render a NetworkX graph as SVG bytes using matplotlib."""
 
-    Vertical timeline layout:
-        - Y axis encodes date (time flows downward)
-        - X axis encodes node type (household, person, day, activity, meal, sleep, food)
-    """
-
-    # Layout computation
     pos = _compute_vertical_timeline_layout(G)
+    node_types = {n: _infer_node_type(n) for n in G.nodes}
 
-    # Prepare styling info
-    node_types: Dict[str, str] = {n: _infer_node_type(n) for n in G.nodes}
+    # Group nodes by type for layered drawing
+    nodes_by_type: Dict[str, list] = {}
+    for n in G.nodes:
+        t = node_types[n]
+        nodes_by_type.setdefault(t, []).append(n)
 
-    type_to_color = {
-        "household": "#1f77b4",
-        "person": "#ff7f0e",
-        "day": "#2ca02c",
-        "activity": "#17becf",
-        "meal": "#d62728",
+    # Figure size based on graph size
+    num_dates = len(set(
+        _extract_date(str(n)) for n in G.nodes if _extract_date(str(n))
+    ))
+    fig_h = max(8, min(60, num_dates * 1.2 + 4))
+    fig_w = max(14, 18)
+
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    fig.patch.set_facecolor('#0f1117')
+    ax.set_facecolor('#0f1117')
+
+    # Draw edges
+    nx.draw_networkx_edges(
+        G, pos, ax=ax,
+        edge_color='#2e3345',
+        alpha=0.3,
+        width=0.5,
+        arrows=True,
+        arrowsize=5,
+        connectionstyle="arc3,rad=0.05",
+    )
+
+    # Draw nodes by type
+    for t, nodes in nodes_by_type.items():
+        color = TYPE_COLORS.get(t, TYPE_COLORS["other"])
+        size = TYPE_SIZES.get(t, 40)
+        nx.draw_networkx_nodes(
+            G, pos, nodelist=nodes, ax=ax,
+            node_color=color,
+            node_size=size,
+            alpha=0.85,
+            edgecolors='#ffffff22',
+            linewidths=0.5,
+        )
+
+    # Labels for important nodes only
+    label_types = {"household", "person", "day"}
+    labels = {n: _short_label(n) for n in G.nodes if node_types[n] in label_types}
+    nx.draw_networkx_labels(
+        G, pos, labels=labels, ax=ax,
+        font_size=6,
+        font_color='#c0c0c0',
+        font_weight='normal',
+    )
+
+    # Legend
+    legend_patches = []
+    for t in ["household", "person", "day", "meal", "food",
+              "activity", "sleep", "metric"]:
+        if t in nodes_by_type:
+            count = len(nodes_by_type[t])
+            legend_patches.append(
+                mpatches.Patch(color=TYPE_COLORS[t], label=f"{t} ({count})")
+            )
+    ax.legend(
+        handles=legend_patches, loc='upper right',
+        fontsize=8, framealpha=0.5,
+        facecolor='#1a1d27', edgecolor='#2e3345',
+        labelcolor='#e4e6f0',
+    )
+
+    ax.set_title(
+        f"Health Graph — {len(G.nodes())} nodes, {len(G.edges())} edges",
+        color='#e4e6f0', fontsize=12, pad=15,
+    )
+    ax.axis("off")
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="svg", bbox_inches="tight", facecolor='#0f1117')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
+# ═══════════════════════════════════════════
+#  Interactive Graph JSON (for D3.js frontend)
+# ═══════════════════════════════════════════
+
+def graph_to_d3_json(G: nx.Graph, max_nodes: int = 500) -> Dict[str, Any]:
+    """
+    Convert a NetworkX graph to a D3.js force-directed graph JSON.
+    Samples nodes if graph is too large.
+    Returns { nodes: [...], links: [...], stats: {...} }
+    """
+    node_types = {n: _infer_node_type(n) for n in G.nodes}
+
+    # If graph is too large, sample a coherent subgraph
+    all_nodes = list(G.nodes())
+    if len(all_nodes) > max_nodes:
+        priority = {"household": 0, "person": 1, "day": 2, "metric": 3,
+                     "sleep": 4, "activity": 5, "meal": 6, "food": 7, "other": 8}
+        all_nodes.sort(key=lambda n: (priority.get(node_types[n], 9), n))
+
+        sampled: set = set()
+        for n in all_nodes:
+            if node_types[n] in {"household", "person"}:
+                sampled.add(n)
+
+        # Add recent day nodes and their neighbors
+        day_nodes = [n for n in all_nodes if node_types[n] == "day"]
+        day_nodes.sort(key=lambda n: _extract_date(str(n)) or "", reverse=True)
+        for dn in day_nodes[:max_nodes // 10]:
+            sampled.add(dn)
+            for nb in list(G.successors(dn)) + list(G.predecessors(dn)):
+                sampled.add(nb)
+                if len(sampled) >= max_nodes:
+                    break
+            if len(sampled) >= max_nodes:
+                break
+
+        G = G.subgraph(sampled).copy()
+
+    nodes = []
+    for n in G.nodes():
+        t = _infer_node_type(n)
+        d = G.nodes[n]
+        nodes.append({
+            "id": n,
+            "label": _short_label(n),
+            "type": t,
+            "color": TYPE_COLORS.get(t, TYPE_COLORS["other"]),
+            "size": max(3, TYPE_SIZES.get(t, 40) // 20),
+            "name": d.get("name", ""),
+            "date": _extract_date(str(n)),
+        })
+
+    links = []
+    for u, v, d in G.edges(data=True):
+        links.append({
+            "source": u,
+            "target": v,
+            "type": d.get("type", ""),
+        })
+
+    type_counts = {}
+    for n in nodes:
+        t = n["type"]
+        type_counts[t] = type_counts.get(t, 0) + 1
+
+    return {
+        "nodes": nodes,
+        "links": links,
+        "stats": {
+            "total_nodes": len(nodes),
+            "total_edges": len(links),
+            "node_types": type_counts,
+        }
     }

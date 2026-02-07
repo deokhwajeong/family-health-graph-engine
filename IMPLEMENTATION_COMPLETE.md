@@ -1,189 +1,174 @@
-# ML 구현 완료 요약
+# ML Implementation Summary
 
-## 최종 구현 상태
+## Final Implementation Status
 
-모든 머신러닝 기능이 성공적으로 구현되었습니다!
+All machine learning features have been successfully implemented!
 
-### ✅ 완료된 기능
+### Completed Features
 
-#### 1. **GraphSAGE 기반 임베딩** 
-- 파일: [`backend/app/graph_embeddings.py`](backend/app/graph_embeddings.py)
-- 16차원 임베딩으로 일일 건강 패턴 표현
-- 2계층 이웃 집계 방식
+#### 1. **GraphSAGE-based Embeddings**
+- File: [`backend/app/graph_embeddings.py`](backend/app/graph_embeddings.py)
+- 16-dimensional embeddings representing daily health patterns
+- 2-layer neighbor aggregation
 
-#### 2. **이상 탐지 (Anomaly Detection)**
-- 파일: [`backend/app/anomaly_detection.py`](backend/app/anomaly_detection.py)
-- Isolation Forest + Local Outlier Factor 조합
-- 이상 패턴 자동 탐지
-- 상관관계 분석 (lag-1 분석)
+#### 2. **Anomaly Detection**
+- File: [`backend/app/anomaly_detection.py`](backend/app/anomaly_detection.py)
+- Isolation Forest + Local Outlier Factor combination
+- Automatic anomalous pattern detection
+- Correlation analysis (lag-1 analysis)
 
-#### 3. **메트릭 예측 & 패턴 분석**
-- 파일: [`backend/app/pattern_analysis.py`](backend/app/pattern_analysis.py)
-- 선형회귀 기반 다음날 메트릭 예측
-- Association Rule 마이닝 (support + confidence)
+#### 3. **Metric Prediction & Pattern Analysis**
+- File: [`backend/app/pattern_analysis.py`](backend/app/pattern_analysis.py)
+- Linear regression-based next-day metric prediction
+- Association Rule mining (support + confidence)
 
-#### 4. **링크 예측 (Link Prediction)**
-- 파일: [`backend/app/link_prediction.py`](backend/app/link_prediction.py)
-- 로지스틱 회귀 기반 숨은 관계 발견
-- 영양학적 호환성, 그래프 거리, 시간적 근접도 고려
+#### 4. **Link Prediction**
+- File: [`backend/app/link_prediction.py`](backend/app/link_prediction.py)
+- Logistic regression-based hidden relationship discovery
+- Considers nutritional compatibility, graph distance, temporal proximity
 
-#### 5. **노드 분류 (Node Classification)**
-- 파일: [`backend/app/node_classifier.py`](backend/app/node_classifier.py)
-- 음식 영양 분류 (healthy/balanced/indulgent)
-- 활동 강도 분류 (light/moderate/vigorous)
-- 일일 건강 상태 분류 (optimal/good/fair/concerning)
+#### 5. **Node Classification**
+- File: [`backend/app/node_classifier.py`](backend/app/node_classifier.py)
+- Food nutrition classification (healthy/balanced/indulgent)
+- Activity intensity classification (light/moderate/vigorous)
+- Daily health status classification (optimal/good/fair/concerning)
 
-### 📊 데이터
+### Data
 
-**합성 데이터**:
-- 60일간 단일 가정(mia) 데이터
-- 매일 3끼 식사, 수면, 활동, 3개 건강 메트릭
-- 16종류의 음식
-- 총 546개 노드, 1078개 엣지
+**Synthetic Data**:
+- 90 days of household data (4 family members)
+- 3 meals, sleep, activity, and 3 health metrics per day per person
+- ~80 food types
+- ~4,500 nodes, ~12,000 edges
 
-### 🚀 사용 방법
+### Usage
 
-#### 1. 환경 설정
+#### 1. Environment Setup
 ```bash
 pip install -r backend/requirements.txt
 ```
 
-#### 2. 모델 학습
+#### 2. Train Models
 ```bash
 python backend/train_models.py
 ```
 
-#### 3. API 실행
+#### 3. Run API Server
 ```bash
 cd backend
 uvicorn main:app --reload
 ```
 
-#### 4. API 테스트
+#### 4. API Testing
 ```bash
-# 일일 피처 추출
-curl "http://localhost:8000/debug/synthetic-graph"
+# Daily insight query
+curl "http://localhost:8000/ml/insights/daily/person:mia/2024-12-15"
 
-# 임베딩
-curl "http://localhost:8000/ml/embeddings/daily/mia/2024-11-20"
+# Food classification
+curl "http://localhost:8000/ml/classification/food/food:salmon"
 
-# 이상 탐지
-curl "http://localhost:8000/ml/anomalies/detect/mia/2024-11-20"
+# Anomaly detection
+curl "http://localhost:8000/ml/anomalies/detect/person:mia/2024-12-15"
 
-# 메트릭 예측
-curl "http://localhost:8000/ml/prediction/metrics/mia/2024-11-20"
-
-# 종합 인사이트
-curl "http://localhost:8000/ml/insights/daily/mia/2024-11-20"
+# Next-day metric prediction
+curl "http://localhost:8000/ml/prediction/metrics/person:mia/2024-12-15"
 ```
 
-### 📁 파일 구조
+### File Structure
 
 ```
 backend/
-├── main.py                      # FastAPI + 50+ 엔드포인트
-├── train_models.py              # ML 모델 학습 파이프라인
-├── requirements.txt             # 의존성
-│
-└── app/
-    ├── graph_builder.py         # 그래프 스키마
-    ├── synthetic_data.py        # 60일 합성 데이터
-    ├── graph_viz.py             # 시각화
-    ├── graph_embeddings.py      # GraphSAGE (16-dim)
-    ├── anomaly_detection.py     # IF + LOF
-    ├── pattern_analysis.py      # 예측 + 규칙
-    ├── link_prediction.py       # 링크 추천
-    └── node_classifier.py       # 분류기
-
-└── models/                      # 학습된 모델 저장
-    ├── graph_sage.pkl
-    ├── anomaly_detector.pkl
-    ├── metric_predictor.pkl
-    ├── link_predictor.pkl
-    ├── food_classifier.pkl
-    └── activity_classifier.pkl
+|- main.py                       # FastAPI application + all endpoints
+|- train_models.py               # ML model training pipeline
+|- requirements.txt              # Dependencies
+|- app/
+|   |- graph_builder.py          # Graph schema
+|   |- synthetic_data.py         # 90-day synthetic data
+|   |- graph_viz.py              # Visualization
+|   |- anomaly_detection.py      # Anomaly detection
+|   |- pattern_analysis.py       # Prediction + rules
+|   |- link_prediction.py        # Link recommendation
+|   +- node_classifier.py        # Classifiers
++- models/                       # Saved ML models (auto-generated)
 ```
 
-### 🎯 핵심 API 엔드포인트
+### Key API Endpoints
 
-| 기능 | 메서드 | 경로 |
-|------|--------|------|
-| 임베딩 | GET | `/ml/embeddings/daily/{person_id}/{date}` |
-| 이상탐지 | GET | `/ml/anomalies/detect/{person_id}/{date}` |
-| 상관분석 | GET | `/ml/anomalies/correlations/{person_id}` |
-| 메트릭예측 | GET | `/ml/prediction/metrics/{person_id}/{date}` |
-| 규칙발견 | GET | `/ml/patterns/association-rules/{person_id}` |
-| 링크제안 | GET | `/ml/link-prediction/suggest` |
-| 음식분류 | GET | `/ml/classification/food/{food_id}` |
-| 활동분류 | GET | `/ml/classification/activity/{activity_id}` |
-| 상태분류 | GET | `/ml/classification/daily-status/{person_id}/{date}` |
-| **종합인사이트** | GET | `/ml/insights/daily/{person_id}/{date}` |
-| 개인요약 | GET | `/ml/summary/{person_id}` |
+| Feature | Method | Path |
+|---------|--------|------|
+| Embeddings | GET | `/ml/embeddings/daily/{person_id}/{date}` |
+| Anomaly Detection | GET | `/ml/anomalies/detect/{person_id}/{date}` |
+| Correlations | GET | `/ml/anomalies/correlations/{person_id}` |
+| Metric Prediction | GET | `/ml/prediction/metrics/{person_id}/{date}` |
+| Rule Discovery | GET | `/ml/patterns/association-rules/{person_id}` |
+| Link Suggestion | GET | `/ml/link-prediction/suggest` |
+| Food Classification | GET | `/ml/classification/food/{food_id}` |
+| Activity Classification | GET | `/ml/classification/activity/{activity_id}` |
+| Status Classification | GET | `/ml/classification/daily-status/{person_id}/{date}` |
+| **Daily Insight** | GET | `/ml/insights/daily/{person_id}/{date}` |
+| Personal Summary | GET | `/ml/summary/{person_id}` |
 
-### 💡 주요 특징
+### Key Highlights
 
-1. **완전히 자체 구현된 ML 알고리즘**
-   - 외부 복잡한 라이브러리 최소화
-   - NumPy/SciKit-Learn만으로 구현
-   - 해석 가능한 결과
+1. **Self-implemented ML algorithms**
+   - Minimal external library dependencies
+   - Built with NumPy/SciKit-Learn only
+   - Interpretable results
 
-2. **증분 학습 가능**
-   - 매일 새 데이터 추가 시 모델 재학습 가능
-   - 모델 자동 저장/로드
+2. **Incremental learning capable**
+   - Models can be retrained as new daily data is added
+   - Automatic model save/load
 
-3. **다중 모달 데이터**
-   - 영양(단백질, 섬유소, 설탕)
-   - 수면(시간, 질)
-   - 활동(강도, 지속시간)
-   - 건강 메트릭(에너지, 집중력, 기분)
+3. **Multi-modal data**
+   - Nutrition (protein, fiber, sugar)
+   - Sleep (duration, quality)
+   - Activity (intensity, duration)
+   - Health metrics (energy, focus, mood)
 
-4. **해석 가능한 결과**
-   - 이상 패턴 원인 제시
-   - 피처 중요도 표시
-   - 행동-결과 규칙 발견
+4. **Interpretable results**
+   - Anomaly cause explanations
+   - Feature importance display
+   - Behavior-outcome rule discovery
 
-### 📝 기술 스택
+### Tech Stack
 
-- **백엔드**: FastAPI + Uvicorn
-- **그래프**: NetworkX (DiGraph)
-- **ML**: SciKit-Learn, NumPy
-- **저장**: JobLib (모델 pickle)
+- **Backend**: FastAPI + Uvicorn
+- **Graph**: NetworkX (DiGraph)
+- **ML**: scikit-learn (sklearn)
+- **Storage**: JobLib (model pickle)
 
-### 🔄 Data → Learn → Predict 흐름
+### Data → Learn → Predict Flow
 
 ```
-User Data Input
-      ↓
-[Add to NetworkX DiGraph]
-      ↓
-Graph Structure (546 nodes, 1078 edges)
-      ↓
-[5개 ML 모델 동시 처리]
-├─ GraphSAGE: 임베딩 생성
-├─ Isolation Forest: 전역 이상탐지
-├─ Local Outlier Factor: 국소 이상탐지
-├─ LinearRegression: 다음날 예측
-└─ LogisticRegression: 링크 예측
-      ↓
-[3개 분류기]
-├─ Food 영양 분류
-├─ Activity 강도 분류
-└─ Daily 상태 분류
-      ↓
-결과: Insights + Predictions + Alerts
+[Daily Data Input]
+  Meals, Sleep, Activity
+         |
+[5 ML Models Processing]
+  |- GraphSAGE: Embedding generation
+  |- Isolation Forest: Global anomaly detection
+  |- Local Outlier Factor: Local anomaly detection
+  |- LinearRegression: Next-day prediction
+  +- LogisticRegression: Link prediction
+
+[3 Classifiers]
+  |- Food nutrition classification
+  |- Activity intensity classification
+  +- Daily status classification
+
+Result: Insights + Predictions + Alerts
 ```
 
-### 📚 참고 자료
+### References
 
-- 상세 구현: [`ML_IMPLEMENTATION.md`](ML_IMPLEMENTATION.md)
-- GraphSAGE: 이웃 정보 기반 임베딩
-- Isolation Forest: 고립(isolation)을 통한 이상탐지
-- Association Rules: 조건부 패턴 발견
+- Detailed implementation: [`ML_IMPLEMENTATION.md`](ML_IMPLEMENTATION.md)
+- GraphSAGE: Neighbor-based embedding
+- Isolation Forest: Anomaly detection via isolation
+- Association Rules: Conditional pattern discovery
 
 ---
 
-**상태**: ✅ 완전 구현  
-**테스트**: API 테스트 완료  
-**배포**: 즉시 실행 가능  
+**Status**: Fully implemented
+**Testing**: API tests completed
+**Deployment**: Ready to run
 
-다음 단계: PyTorch Geometric GNN 업그레이드, LSTM 시계열 예측, 실시간 온라인 학습
+Next steps: PyTorch Geometric GNN upgrade, LSTM time-series forecasting, real-time online learning
