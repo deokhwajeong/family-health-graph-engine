@@ -14,9 +14,12 @@ Main modules:
 - config: Application configuration
 - logger: Structured logging
 - utils: Utility functions
+- llm_engine: OpenAI-compatible LLM integration for health Q&A
+- rag_engine: RAG pipeline with ChromaDB vector store
+- food_ocr: OCR-based food image analysis with LLM vision fallback
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "deokhwajeong"
 
 from .config import settings

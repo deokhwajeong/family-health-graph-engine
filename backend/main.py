@@ -13,14 +13,15 @@ Author: deokhwajeong
 Version: 0.2.0
 """
 
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.responses import RedirectResponse, Response, HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Query, Body
+from fastapi.responses import RedirectResponse, Response, HTMLResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from networkx.readwrite import json_graph
 import joblib
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 from .app.graph_builder import build_example_graph, GraphBuilder
 from .app.synthetic_data import build_single_child_household
@@ -40,6 +41,9 @@ from .app.schemas import (
     ConsentRequest, DeletionRequest, FairnessAuditRequest,
 )
 from .app.logger import api_logger, ml_logger
+from .app.llm_engine import get_llm_engine, configure_llm_engine, LLMEngine
+from .app.rag_engine import get_rag_engine, RAGEngine, GraphDocumentConverter
+from .app.food_ocr import analyze_food_image as ocr_analyze_food_image, analyze_food_text, add_meal_to_graph
 
 
 app = FastAPI(
@@ -65,6 +69,7 @@ MODEL_DIR.mkdir(exist_ok=True)
 
 # Frontend directory
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+BACKEND_STATIC_DIR = Path(__file__).parent / "static"
 
 # Mount static files if frontend exists
 if FRONTEND_DIR.exists():
@@ -83,7 +88,11 @@ api_logger.info("FastAPI application initialized", version="0.2.0", model_dir=st
 @app.get("/", tags=["System"])
 def root():
     """Serve the frontend dashboard or redirect to API docs."""
-    # Check if frontend index.html exists
+    # Prefer the self-contained backend/static/index.html (has all features inline)
+    backend_index = BACKEND_STATIC_DIR / "index.html"
+    if backend_index.exists():
+        return FileResponse(str(backend_index))
+    # Fallback to frontend/index.html
     frontend_index = FRONTEND_DIR / "index.html"
     if frontend_index.exists():
         return FileResponse(str(frontend_index))
@@ -1378,5 +1387,426 @@ async def shortcuts_guide():
     </html>
     """
     return HTMLResponse(content=html_content)
+
+
+# ---------------------------------------------------------
+# LLM Chat Endpoints
+# ---------------------------------------------------------
+
+@app.get("/llm/status", tags=["LLM"])
+def llm_status():
+    """Check LLM engine configuration status."""
+    llm = get_llm_engine()
+    return {
+        "configured": llm.is_configured,
+        "model": llm.model,
+        "vision_model": llm.vision_model,
+        "message": "LLM ready" if llm.is_configured else "Set OPENAI_API_KEY environment variable to enable LLM features",
+    }
+
+
+@app.post("/llm/configure", tags=["LLM"])
+def configure_llm(
+    api_key: str = Form(None),
+    base_url: str = Form(None),
+    model: str = Form("gpt-4o-mini"),
+    vision_model: str = Form("gpt-4o"),
+):
+    """Configure the LLM engine with API credentials."""
+    try:
+        llm = configure_llm_engine(
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            vision_model=vision_model,
+        )
+        api_logger.info("LLM configured", model=model)
+        return {
+            "status": "success",
+            "configured": llm.is_configured,
+            "model": model,
+            "vision_model": vision_model,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/llm/chat", tags=["LLM"])
+def llm_chat(
+    message: str = Form(...),
+    session_id: str = Form("default"),
+    person_id: str = Form(None),
+    use_rag: bool = Form(True),
+    days: int = Form(60),
+):
+    """
+    Chat with the health AI assistant.
+
+    When use_rag=True, relevant health data is automatically retrieved
+    and provided as context to the LLM.
+    """
+    try:
+        context = None
+
+        if use_rag:
+            # Build graph and get RAG context
+            rag = get_rag_engine()
+            try:
+                G = build_single_child_household(num_days=days)
+                gb = get_demo_graph()
+                if gb and gb.G.number_of_nodes() > 5:
+                    G = gb.G
+
+                # Ensure indexed
+                if rag.vector_store.document_count == 0:
+                    rag.index_graph(G, person_id)
+
+                # Search for relevant context
+                results = rag.vector_store.search(message, n_results=5)
+                if results:
+                    context = "\n---\n".join([r["text"] for r in results])
+            except Exception as e:
+                api_logger.warning("RAG context retrieval failed", exc=str(e))
+
+        llm = get_llm_engine()
+        if not llm.is_configured:
+            # Provide retrieval-only response
+            if context:
+                return {
+                    "response": f"🔍 관련 건강 데이터:\n\n{context}\n\n💡 AI 분석을 원하시면 OPENAI_API_KEY를 설정해주세요.",
+                    "model": "none",
+                    "session_id": session_id,
+                    "llm_configured": False,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            return {
+                "response": "LLM이 구성되지 않았습니다. POST /llm/configure로 API 키를 설정하거나 OPENAI_API_KEY 환경변수를 설정해주세요.",
+                "model": "none",
+                "llm_configured": False,
+                "session_id": session_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+        result = llm.chat(
+            message=message,
+            session_id=session_id,
+            context=context,
+        )
+        result["llm_configured"] = True
+        return result
+
+    except Exception as e:
+        api_logger.error("LLM chat failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/llm/chat/stream", tags=["LLM"])
+async def llm_chat_stream(
+    message: str = Form(...),
+    session_id: str = Form("default"),
+):
+    """Stream a chat response (Server-Sent Events)."""
+    llm = get_llm_engine()
+    if not llm.is_configured:
+        raise HTTPException(status_code=400, detail="LLM not configured")
+
+    async def event_generator():
+        async for chunk in llm.chat_stream(message, session_id):
+            yield f"data: {chunk}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
+@app.get("/llm/history/{session_id}", tags=["LLM"])
+def llm_get_history(session_id: str):
+    """Get conversation history for a session."""
+    llm = get_llm_engine()
+    history = llm.get_history(session_id)
+    return {"session_id": session_id, "messages": history, "count": len(history)}
+
+
+@app.delete("/llm/history/{session_id}", tags=["LLM"])
+def llm_clear_history(session_id: str):
+    """Clear conversation history for a session."""
+    llm = get_llm_engine()
+    llm.clear_history(session_id)
+    return {"status": "cleared", "session_id": session_id}
+
+
+@app.post("/llm/recommend/{person_id}", tags=["LLM"])
+def llm_health_recommendation(
+    person_id: str,
+    question: str = Form(None),
+    days: int = Form(60),
+):
+    """Generate personalized health recommendations using LLM."""
+    try:
+        G = build_single_child_household(num_days=days)
+        context = GraphDocumentConverter.generate_person_summary(G, person_id)
+
+        llm = get_llm_engine()
+        if not llm.is_configured:
+            return {
+                "recommendation": context,
+                "method": "graph_summary_only",
+                "llm_configured": False,
+                "person_id": person_id,
+            }
+
+        result = llm.generate_health_recommendation(
+            person_key=person_id,
+            graph_context=context,
+            specific_question=question,
+        )
+        result["person_id"] = person_id
+        return result
+
+    except Exception as e:
+        api_logger.error("Health recommendation failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------
+# RAG Endpoints
+# ---------------------------------------------------------
+
+@app.post("/rag/index", tags=["RAG"])
+def rag_index(
+    person_id: str = Form(None),
+    days: int = Form(60),
+    use_demo_graph: bool = Form(False),
+):
+    """Index health graph data into the RAG vector store."""
+    try:
+        if use_demo_graph:
+            gb = get_demo_graph()
+            G = gb.G
+        else:
+            G = build_single_child_household(num_days=days)
+
+        rag = get_rag_engine()
+        stats = rag.index_graph(G, person_id)
+
+        api_logger.info("RAG index completed", stats=stats)
+        return {
+            "status": "success",
+            "documents_indexed": stats["indexed"],
+            "total_in_store": stats["total_in_store"],
+            "person_id": person_id,
+        }
+    except Exception as e:
+        api_logger.error("RAG indexing failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/rag/query", tags=["RAG"])
+def rag_query(
+    question: str = Form(...),
+    person_id: str = Form(None),
+    session_id: str = Form("rag"),
+    n_context: int = Form(5),
+):
+    """
+    Ask a health question using RAG (Retrieval-Augmented Generation).
+
+    The system retrieves relevant health data, then uses the LLM 
+    to generate a contextual answer.
+    """
+    try:
+        rag = get_rag_engine()
+
+        # Auto-index if empty
+        if rag.vector_store.document_count == 0:
+            G = build_single_child_household(num_days=60)
+            rag.index_graph(G, person_id)
+
+        result = rag.query(
+            question=question,
+            person_id=person_id,
+            n_context=n_context,
+            session_id=session_id,
+        )
+        return result
+
+    except Exception as e:
+        api_logger.error("RAG query failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/rag/search", tags=["RAG"])
+def rag_search(
+    query: str = Query(..., description="Search query"),
+    n_results: int = Query(5, ge=1, le=20),
+):
+    """Search the health knowledge base without LLM generation."""
+    try:
+        rag = get_rag_engine()
+
+        if rag.vector_store.document_count == 0:
+            G = build_single_child_household(num_days=60)
+            rag.index_graph(G)
+
+        results = rag.vector_store.search(query, n_results=n_results)
+        return {
+            "query": query,
+            "results": results,
+            "count": len(results),
+            "total_documents": rag.vector_store.document_count,
+        }
+
+    except Exception as e:
+        api_logger.error("RAG search failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/rag/reindex", tags=["RAG"])
+def rag_reindex(
+    person_id: str = Form(None),
+    days: int = Form(60),
+):
+    """Clear and re-index the RAG vector store."""
+    try:
+        G = build_single_child_household(num_days=days)
+        rag = get_rag_engine()
+        stats = rag.reindex(G, person_id)
+        return {
+            "status": "reindexed",
+            "documents_indexed": stats["indexed"],
+            "total_in_store": stats["total_in_store"],
+        }
+    except Exception as e:
+        api_logger.error("RAG reindex failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/rag/stats", tags=["RAG"])
+def rag_stats():
+    """Get RAG vector store statistics."""
+    rag = get_rag_engine()
+    return {
+        "document_count": rag.vector_store.document_count,
+        "collection_name": "health_knowledge",
+        "status": "indexed" if rag.vector_store.document_count > 0 else "empty",
+    }
+
+
+# ---------------------------------------------------------
+# Food OCR / Image Analysis Endpoints
+# ---------------------------------------------------------
+
+@app.post("/api/food/analyze-image", tags=["Food Analysis"])
+async def analyze_food_image_endpoint(
+    file: UploadFile = File(...),
+    person_name: str = Form("unknown"),
+    meal_date: str = Form(None),
+    add_to_graph: bool = Form(False),
+):
+    """
+    Analyze a food image using OCR + LLM vision + color analysis.
+
+    Pipeline:
+    1. OCR text extraction (tesseract → easyocr → LLM vision)
+    2. Food recognition from extracted text
+    3. LLM vision analysis (if API key configured)
+    4. Color-based food suggestion
+    5. Nutrition lookup and aggregation
+    6. Optionally add to health graph
+    """
+    try:
+        image_bytes = await file.read()
+        filename = file.filename or ""
+
+        analysis = ocr_analyze_food_image(
+            image_bytes=image_bytes,
+            filename=filename,
+            person_key=person_name.lower(),
+            meal_date=meal_date,
+        )
+
+        # Optionally add to graph
+        graph_stats = None
+        if add_to_graph and analysis["food_count"] > 0:
+            gb = get_demo_graph()
+            graph_stats = add_meal_to_graph(gb, analysis)
+            analysis["graph_update"] = graph_stats
+
+        api_logger.info(
+            "Food image analyzed",
+            person=person_name,
+            foods=analysis["food_count"],
+            engine=analysis["ocr_engine"],
+        )
+        return analysis
+
+    except Exception as e:
+        api_logger.error("Food image analysis failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/food/analyze-text", tags=["Food Analysis"])
+async def analyze_food_text_endpoint(
+    text: str = Form(...),
+    person_name: str = Form("unknown"),
+    meal_date: str = Form(None),
+    add_to_graph: bool = Form(False),
+):
+    """
+    Analyze food from text description.
+
+    Example: "chicken breast with rice and broccoli"
+    """
+    try:
+        analysis = analyze_food_text(
+            text=text,
+            person_key=person_name.lower(),
+            meal_date=meal_date,
+        )
+
+        if add_to_graph and analysis["food_count"] > 0:
+            gb = get_demo_graph()
+            graph_stats = add_meal_to_graph(gb, analysis)
+            analysis["graph_update"] = graph_stats
+
+        return analysis
+
+    except Exception as e:
+        api_logger.error("Food text analysis failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/food/analyze-llm", tags=["Food Analysis"])
+async def analyze_food_llm(
+    file: UploadFile = File(...),
+    person_name: str = Form("unknown"),
+):
+    """
+    Analyze a food image exclusively using LLM vision (GPT-4o).
+    Requires OPENAI_API_KEY to be configured.
+    """
+    try:
+        llm = get_llm_engine()
+        if not llm.is_configured:
+            raise HTTPException(
+                status_code=400,
+                detail="LLM not configured. Set OPENAI_API_KEY or call POST /llm/configure",
+            )
+
+        image_bytes = await file.read()
+        result = llm.analyze_food_image(
+            image_bytes=image_bytes,
+            person_key=person_name.lower(),
+        )
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error("LLM food analysis failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 

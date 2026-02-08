@@ -303,7 +303,7 @@
 <aside class="sidebar">
   <div class="sidebar-brand">
     <h1>🏠 Family Health</h1>
-    <p>Graph Engine v0.2.0</p>
+    <p>Graph Engine v0.3.0</p>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section">
@@ -352,6 +352,15 @@
       </button>
       <button class="nav-item" data-page="food-photo">
         <span class="icon">📷</span><span>Food Photo</span>
+      </button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">AI Assistant</div>
+      <button class="nav-item" data-page="ai-chat">
+        <span class="icon">🤖</span><span>Health Chat</span>
+      </button>
+      <button class="nav-item" data-page="rag-search">
+        <span class="icon">🔍</span><span>RAG Search</span>
       </button>
     </div>
   </nav>
@@ -705,6 +714,105 @@
     </div>
   </section>
 
+  <!-- ═══════ AI Chat Page ═══════ -->
+  <section class="page" id="page-ai-chat">
+    <div class="page-header">
+      <div>
+        <h2>🤖 Health AI Assistant</h2>
+        <div class="subtitle">Ask questions about health data using RAG-powered AI</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <span id="llm-status-badge" class="badge" style="font-size:11px; padding:4px 10px; border-radius:20px; background:var(--surface2); color:var(--text2);">Checking...</span>
+        <button class="btn btn-outline btn-sm" onclick="showLLMConfig()">⚙️ Configure</button>
+      </div>
+    </div>
+
+    <!-- LLM Config Panel (hidden by default) -->
+    <div id="llm-config-panel" class="detail-section" style="display:none; margin-bottom:16px;">
+      <h3>⚙️ LLM Configuration</h3>
+      <form onsubmit="saveLLMConfig(event)" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; align-items:end;">
+        <div style="flex:2; min-width:200px;">
+          <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">OpenAI API Key</label>
+          <input type="password" id="llm-api-key" placeholder="sk-..." style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;">
+        </div>
+        <div style="flex:1; min-width:140px;">
+          <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Model</label>
+          <select id="llm-model" style="width:100%; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;">
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+      </form>
+    </div>
+
+    <div class="grid grid-2" style="gap:24px; height: calc(100vh - 200px);">
+      <!-- Chat Panel -->
+      <div class="detail-section" style="display:flex; flex-direction:column; height:100%;">
+        <h3>💬 Chat</h3>
+        <div id="chat-messages" style="flex:1; overflow-y:auto; padding:12px; background:var(--surface2); border-radius:12px; margin:12px 0; display:flex; flex-direction:column; gap:12px; min-height:300px;">
+          <div class="chat-msg chat-system" style="text-align:center; color:var(--text2); font-size:13px; padding:20px;">
+            🤖 건강 AI 어시스턴트입니다. 건강 데이터에 대해 질문해주세요!<br>
+            <small>예: "최근 수면 패턴을 분석해줘", "식단 개선 추천해줘"</small>
+          </div>
+        </div>
+        <form onsubmit="sendChatMessage(event)" style="display:flex; gap:8px;">
+          <input type="text" id="chat-input" placeholder="건강에 관해 질문하세요..." 
+            style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:14px; outline:none;"
+            autocomplete="off">
+          <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text2); cursor:pointer;">
+            <input type="checkbox" id="chat-use-rag" checked style="accent-color:var(--accent);"> RAG
+          </label>
+          <button type="submit" class="btn btn-primary" id="chat-send-btn">전송</button>
+        </form>
+      </div>
+
+      <!-- RAG Context Panel -->
+      <div class="detail-section" style="display:flex; flex-direction:column; height:100%;">
+        <h3>📚 Retrieved Context</h3>
+        <div id="rag-context-panel" style="flex:1; overflow-y:auto; padding:12px; background:var(--surface2); border-radius:12px; margin:12px 0; min-height:300px;">
+          <div style="text-align:center; padding:40px; color:var(--text2); font-size:13px;">
+            RAG 검색 결과가 여기에 표시됩니다.<br>
+            채팅 시 관련 건강 데이터가 자동으로 검색됩니다.
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline btn-sm" onclick="indexRAG()">📥 Index Graph</button>
+          <button class="btn btn-outline btn-sm" onclick="clearChat()">🗑️ Clear Chat</button>
+          <span id="rag-doc-count" style="font-size:11px; color:var(--text2); align-self:center; margin-left:auto;"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ RAG Search Page ═══════ -->
+  <section class="page" id="page-rag-search">
+    <div class="page-header">
+      <div>
+        <h2>🔍 RAG Knowledge Search</h2>
+        <div class="subtitle">Search the health knowledge base using semantic retrieval</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <form onsubmit="ragSearch(event)" style="display:flex; gap:12px; margin-bottom:16px;">
+        <input type="text" id="rag-search-input" placeholder="예: 수면 패턴, 영양 섭취, 운동 기록..." 
+          style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:14px; outline:none;">
+        <select id="rag-search-count" style="padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;">
+          <option value="5">5 results</option>
+          <option value="10">10 results</option>
+          <option value="20">20 results</option>
+        </select>
+        <button type="submit" class="btn btn-primary">🔍 Search</button>
+      </form>
+      <div id="rag-search-results" style="min-height:200px;">
+        <div style="text-align:center; padding:40px; color:var(--text2);">
+          건강 지식 기반을 검색하세요. 그래프 데이터와 건강 지식이 포함됩니다.
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- Status Bar -->
@@ -778,6 +886,8 @@ const pageLoaders = {
   'apple-health': loadAppleHealth,
   'food-photo': loadFoodPhotoPage,
   'recommendations': loadRecommendations,
+  'ai-chat': loadAIChat,
+  'rag-search': loadRAGSearch,
 };
 const loadedPages = new Set();
 
@@ -2904,6 +3014,195 @@ async function checkHealth() {
 checkHealth();
 loadDashboard();
 loadedPages.add('dashboard');
+
+// ═══════════════════════════════════════════
+//  AI Chat & RAG Functions
+// ═══════════════════════════════════════════
+let chatSessionId = 'session_' + Date.now();
+
+async function loadAIChat() {
+  try {
+    const status = await api('/llm/status');
+    const badge = document.getElementById('llm-status-badge');
+    if (status.configured) {
+      badge.textContent = '✅ ' + status.model;
+      badge.style.background = 'rgba(0,184,148,0.15)'; badge.style.color = 'var(--green)';
+    } else {
+      badge.textContent = '⚠️ Not configured';
+      badge.style.background = 'rgba(253,203,110,0.15)'; badge.style.color = 'var(--orange)';
+    }
+    // Load RAG stats
+    const stats = await api('/rag/stats');
+    document.getElementById('rag-doc-count').textContent = `📄 ${stats.document_count} docs indexed`;
+  } catch(e) {
+    console.warn('AI status check failed', e);
+  }
+}
+
+function showLLMConfig() {
+  const p = document.getElementById('llm-config-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+async function saveLLMConfig(e) {
+  e.preventDefault();
+  try {
+    const form = new FormData();
+    const key = document.getElementById('llm-api-key').value;
+    const model = document.getElementById('llm-model').value;
+    if (key) form.append('api_key', key);
+    form.append('model', model);
+    const res = await fetch('/llm/configure', { method:'POST', body: form });
+    const data = await res.json();
+    if (data.status === 'success') {
+      toast('LLM configured successfully!');
+      loadAIChat();
+      document.getElementById('llm-config-panel').style.display = 'none';
+    } else {
+      toast('Configuration failed', 'error');
+    }
+  } catch(e) { toast('Error: '+e.message, 'error'); }
+}
+
+async function sendChatMessage(e) {
+  e.preventDefault();
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  const container = document.getElementById('chat-messages');
+  const useRag = document.getElementById('chat-use-rag').checked;
+
+  // Add user message
+  container.innerHTML += `<div style="align-self:flex-end; background:var(--accent); color:#fff; padding:10px 14px; border-radius:16px 16px 4px 16px; max-width:80%; font-size:14px;">${escapeHtml(msg)}</div>`;
+  container.scrollTop = container.scrollHeight;
+
+  // Show typing
+  const typingId = 'typing-' + Date.now();
+  container.innerHTML += `<div id="${typingId}" style="align-self:flex-start; color:var(--text2); font-size:13px; padding:8px;">🤖 thinking...</div>`;
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const form = new FormData();
+    form.append('message', msg);
+    form.append('session_id', chatSessionId);
+    form.append('use_rag', useRag);
+    const res = await fetch('/llm/chat', { method:'POST', body: form });
+    const data = await res.json();
+
+    // Remove typing indicator
+    const typing = document.getElementById(typingId);
+    if (typing) typing.remove();
+
+    // Add AI response
+    const response = data.response || data.detail || 'No response';
+    container.innerHTML += `<div style="align-self:flex-start; background:var(--surface); border:1px solid var(--border); padding:12px 16px; border-radius:16px 16px 16px 4px; max-width:85%; font-size:14px; line-height:1.7; white-space:pre-wrap;">
+      <div style="font-size:11px; color:var(--text2); margin-bottom:6px;">🤖 ${data.model || 'AI'} ${data.llm_configured ? '' : '(retrieval only)'}</div>
+      ${escapeHtml(response)}
+    </div>`;
+    container.scrollTop = container.scrollHeight;
+
+    // Update RAG context panel if available
+    if (useRag && data.response) {
+      updateRAGContext(msg);
+    }
+  } catch(e) {
+    const typing = document.getElementById(typingId);
+    if (typing) typing.remove();
+    container.innerHTML += `<div style="align-self:flex-start; color:var(--red); font-size:13px; padding:8px;">❌ Error: ${escapeHtml(e.message)}</div>`;
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+async function updateRAGContext(query) {
+  try {
+    const res = await fetch(`/rag/search?query=${encodeURIComponent(query)}&n_results=3`);
+    const data = await res.json();
+    const panel = document.getElementById('rag-context-panel');
+    if (data.results && data.results.length > 0) {
+      panel.innerHTML = data.results.map((r, i) => `
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px;">
+          <div style="font-size:11px; color:var(--accent2); margin-bottom:4px;">📄 #${i+1} · Score: ${(r.score || 0).toFixed(3)}</div>
+          <div style="font-size:13px; line-height:1.6; color:var(--text); white-space:pre-wrap;">${escapeHtml(r.text || r.document || '')}</div>
+          ${r.metadata ? `<div style="font-size:10px; color:var(--text2); margin-top:6px;">${Object.entries(r.metadata).map(([k,v]) => k+':'+v).join(' · ')}</div>` : ''}
+        </div>
+      `).join('');
+    }
+  } catch(e) { console.warn('RAG context update failed', e); }
+}
+
+async function indexRAG() {
+  try {
+    toast('Indexing graph data...');
+    const form = new FormData();
+    form.append('days', '90');
+    const res = await fetch('/rag/index', { method:'POST', body: form });
+    const data = await res.json();
+    toast(`Indexed ${data.documents_indexed} documents`);
+    document.getElementById('rag-doc-count').textContent = `📄 ${data.total_in_store} docs indexed`;
+  } catch(e) { toast('Indexing failed: '+e.message, 'error'); }
+}
+
+function clearChat() {
+  chatSessionId = 'session_' + Date.now();
+  document.getElementById('chat-messages').innerHTML = `
+    <div style="text-align:center; color:var(--text2); font-size:13px; padding:20px;">
+      🤖 건강 AI 어시스턴트입니다. 건강 데이터에 대해 질문해주세요!<br>
+      <small>예: "최근 수면 패턴을 분석해줘", "식단 개선 추천해줘"</small>
+    </div>`;
+  document.getElementById('rag-context-panel').innerHTML = `
+    <div style="text-align:center; padding:40px; color:var(--text2); font-size:13px;">
+      RAG 검색 결과가 여기에 표시됩니다.
+    </div>`;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function loadRAGSearch() {
+  try {
+    const stats = await api('/rag/stats');
+    if (stats.document_count === 0) {
+      const form = new FormData(); form.append('days','60');
+      await fetch('/rag/index', { method:'POST', body: form });
+    }
+  } catch(e) { console.warn('RAG init failed', e); }
+}
+
+async function ragSearch(e) {
+  e.preventDefault();
+  const query = document.getElementById('rag-search-input').value.trim();
+  if (!query) return;
+  const n = document.getElementById('rag-search-count').value;
+  const container = document.getElementById('rag-search-results');
+  container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">🔍 Searching...</div>';
+
+  try {
+    const res = await fetch(`/rag/search?query=${encodeURIComponent(query)}&n_results=${n}`);
+    const data = await res.json();
+    if (!data.results || data.results.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2);">No results found</div>';
+      return;
+    }
+    container.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:12px;">${data.count} results from ${data.total_documents} documents</div>` +
+      data.results.map((r, i) => `
+        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:12px; color:var(--accent2); font-weight:600;">Result #${i+1}</span>
+            <span style="font-size:11px; color:var(--text2);">Score: ${(r.score || 0).toFixed(4)}</span>
+          </div>
+          <div style="font-size:14px; line-height:1.7; white-space:pre-wrap;">${escapeHtml(r.text || r.document || '')}</div>
+          ${r.metadata ? `<div style="font-size:10px; color:var(--text2); margin-top:8px; border-top:1px solid var(--border); padding-top:8px;">${Object.entries(r.metadata).map(([k,v]) => `<span style="background:var(--surface);padding:2px 6px;border-radius:4px;margin-right:4px;">${k}: ${v}</span>`).join('')}</div>` : ''}
+        </div>
+      `).join('');
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--red);padding:20px;">Error: ${escapeHtml(e.message)}</div>`;
+  }
+}
 </script>
 </body>
 </html>

@@ -43,6 +43,24 @@ class Settings(BaseSettings):
     consent_required_for_ml: bool = True
     fairness_audit_interval: int = 30  # Days between scheduled audits
     
+    # LLM Settings
+    openai_api_key: Optional[str] = None
+    openai_base_url: Optional[str] = None
+    llm_model: str = "gpt-4o-mini"
+    llm_vision_model: str = "gpt-4o"
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 1000
+    
+    # RAG Settings
+    rag_collection_name: str = "health_knowledge"
+    rag_persist_directory: Optional[str] = None
+    rag_chunk_size: int = 500
+    rag_chunk_overlap: int = 50
+    
+    # OCR Settings  
+    tesseract_cmd: Optional[str] = None  # Path to tesseract binary
+    ocr_languages: str = "eng+kor"
+    
     # Logging
     log_level: str = "INFO"
     log_to_file: bool = False

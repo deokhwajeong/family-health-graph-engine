@@ -199,9 +199,33 @@ def _try_tesseract(image_bytes: bytes) -> Optional[str]:
     try:
         import pytesseract
         from PIL import Image
+
         img = Image.open(io.BytesIO(image_bytes))
-        text = pytesseract.image_to_string(img, lang="eng")
-        return text
+
+        # Pre-process: convert to RGB, resize if too small
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+        # Enhance for better OCR: upscale small images
+        w, h = img.size
+        if w < 300 or h < 300:
+            scale = max(300 / w, 300 / h, 1.0)
+            img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+        # Try multiple languages including Korean
+        for lang in ["eng+kor", "eng", "kor"]:
+            try:
+                text = pytesseract.image_to_string(img, lang=lang)
+                if text and text.strip() and len(text.strip()) > 2:
+                    return text.strip()
+            except Exception:
+                continue
+
+        # Fallback: default language
+        text = pytesseract.image_to_string(img)
+        return text.strip() if text else None
+    except ImportError:
+        return None
     except Exception:
         return None
 
@@ -210,9 +234,30 @@ def _try_easyocr(image_bytes: bytes) -> Optional[str]:
     """Attempt OCR via easyocr. Returns None if unavailable."""
     try:
         import easyocr
-        reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+        reader = easyocr.Reader(["en", "ko"], gpu=False, verbose=False)
         results = reader.readtext(image_bytes)
         return " ".join([r[1] for r in results])
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+
+def _try_llm_vision(image_bytes: bytes) -> Optional[str]:
+    """Attempt food recognition via LLM vision API. Returns None if unavailable."""
+    try:
+        from .llm_engine import get_llm_engine
+        llm = get_llm_engine()
+        if not llm.is_configured:
+            return None
+
+        result = llm.analyze_food_image(image_bytes)
+        if result and result.get("foods"):
+            food_names = [f.get("name", "") for f in result["foods"] if f.get("name")]
+            return " ".join(food_names) if food_names else None
+        if result and result.get("description"):
+            return result["description"]
+        return None
     except Exception:
         return None
 
@@ -221,17 +266,22 @@ def extract_text_from_image(image_bytes: bytes) -> Tuple[str, str]:
     """
     Extract text from an image using available OCR engines.
     Returns (extracted_text, engine_used).
-    Falls back to filename-based detection if no OCR engine available.
+    Falls back to LLM vision, then filename-based detection if no OCR available.
     """
-    # Try tesseract first (most common)
+    # Try tesseract first (most common, local)
     text = _try_tesseract(image_bytes)
-    if text and text.strip():
+    if text and text.strip() and len(text.strip()) > 2:
         return text.strip(), "tesseract"
 
     # Try easyocr
     text = _try_easyocr(image_bytes)
-    if text and text.strip():
+    if text and text.strip() and len(text.strip()) > 2:
         return text.strip(), "easyocr"
+
+    # Try LLM vision as fallback
+    text = _try_llm_vision(image_bytes)
+    if text and text.strip():
+        return text.strip(), "llm_vision"
 
     return "", "none"
 
@@ -443,16 +493,49 @@ def analyze_food_image(
             ff["match_type"] = "filename"
             foods.append(ff)
 
-    # Step 4: Image colour analysis (always run, especially useful when OCR yields nothing)
+    # Step 4: LLM vision analysis (when available and OCR yields few results)
+    llm_analysis = {}
+    if len(foods) < 2:
+        try:
+            from .llm_engine import get_llm_engine
+            llm = get_llm_engine()
+            if llm.is_configured:
+                llm_result = llm.analyze_food_image(
+                    image_bytes,
+                    person_key=person_key,
+                )
+                if llm_result and llm_result.get("foods"):
+                    llm_analysis = llm_result
+                    # Merge LLM-detected foods
+                    for lf in llm_result["foods"]:
+                        name = lf.get("name", "").lower().strip()
+                        if name and name not in existing_names:
+                            food_info = {
+                                "name": name,
+                                "matched_text": name,
+                                "match_type": "llm_vision",
+                                "kcal": lf.get("calories", 0),
+                                "protein_g": lf.get("protein_g", 0),
+                                "fat_g": lf.get("fat_g", 0),
+                                "fiber_g": lf.get("fiber_g", 0),
+                                "sugar_g": lf.get("sugar_g", 0),
+                                "category": lf.get("category", "other"),
+                            }
+                            foods.append(food_info)
+                            existing_names.add(name)
+        except Exception:
+            pass
+
+    # Step 5: Image colour analysis (always run, especially useful when OCR yields nothing)
     color_analysis = analyze_image_colors(image_bytes)
 
-    # Step 5: Aggregate nutrition
+    # Step 6: Aggregate nutrition
     total = {"kcal": 0, "protein_g": 0, "fat_g": 0, "fiber_g": 0, "sugar_g": 0}
     for f in foods:
         for k in total:
             total[k] += f.get(k, 0)
 
-    # Step 6: Build meal summary
+    # Step 7: Build meal summary
     meal_id = f"meal:{person_key}:{meal_date}:photo-{hashlib.md5(image_bytes[:1024]).hexdigest()[:8]}"
 
     result = {
@@ -462,6 +545,7 @@ def analyze_food_image(
         "ocr_engine": ocr_engine,
         "total_nutrition": total,
         "image_analysis": color_analysis,
+        "llm_analysis": llm_analysis,
         "meal_summary": {
             "meal_id": meal_id,
             "person_key": person_key,
