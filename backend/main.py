@@ -91,11 +91,17 @@ def root():
     # Prefer the self-contained backend/static/index.html (has all features inline)
     backend_index = BACKEND_STATIC_DIR / "index.html"
     if backend_index.exists():
-        return FileResponse(str(backend_index))
+        return FileResponse(
+            str(backend_index),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+        )
     # Fallback to frontend/index.html
     frontend_index = FRONTEND_DIR / "index.html"
     if frontend_index.exists():
-        return FileResponse(str(frontend_index))
+        return FileResponse(
+            str(frontend_index),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+        )
     return RedirectResponse(url="/docs", status_code=307)
 
 

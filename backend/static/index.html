@@ -1074,12 +1074,6 @@ async function loadDashboard() {
     document.getElementById('family-status-cards').innerHTML = statusHtml;
 
     updateStatus('online', `${stats.total_nodes} nodes · ${stats.total_edges} edges`);
-
-    // Load graph SVG into dashboard (non-blocking)
-    loadDashboardGraph();
-
-    // Load 7-day trend charts
-    loadTrendCharts();
   } catch (e) {
     console.error(e);
     updateStatus('offline', 'Server Connection Failed');
@@ -1091,6 +1085,10 @@ async function loadDashboard() {
       </div>
     `;
   }
+
+  // Load graph and trends independently (always run even if above fails)
+  loadDashboardGraph();
+  loadTrendCharts();
 }
 
 // ═══════════════════════════════════════════
