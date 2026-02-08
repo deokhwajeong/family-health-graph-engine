@@ -470,6 +470,26 @@
     <div class="graph-viz" id="graph-d3-container" style="height:600px;">
       <div class="loading"><div class="spinner"></div>Generating interactive graph...</div>
     </div>
+
+    <!-- Graph Insights Panel -->
+    <div id="graph-insights-panel" style="margin-top:24px;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <h3 style="margin:0;">📊 그래프 분석 인사이트</h3>
+        <span style="font-size:11px; color:var(--text2);" id="insights-meta"></span>
+      </div>
+
+      <!-- Global Insights -->
+      <div id="global-insights" style="margin-bottom:20px;"></div>
+
+      <!-- Per-Person Summaries -->
+      <div id="person-insights-grid" class="grid grid-2" style="gap:16px; margin-bottom:20px;"></div>
+
+      <!-- Nutrition Overview & Hub Nodes -->
+      <div class="grid grid-2" style="gap:16px;">
+        <div class="detail-section" id="nutrition-insights"></div>
+        <div class="detail-section" id="structure-insights"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ═══════ Person Insights Page ═══════ -->
@@ -1234,9 +1254,10 @@ async function loadGraphPage() {
   c.innerHTML = '<div class="loading"><div class="spinner"></div>Generating interactive graph...</div>';
 
   try {
-    const [data, stats] = await Promise.all([
+    const [data, stats, insights] = await Promise.all([
       api(`/api/graph/d3?days=${selectedDays}&max_nodes=500`),
       api(`/api/graph/stats?days=${selectedDays}`),
+      api(`/api/graph/insights?days=${selectedDays}`),
     ]);
 
     // Stats cards
@@ -1268,6 +1289,7 @@ async function loadGraphPage() {
     }
 
     renderD3Graph('graph-d3-container', data, 580);
+    renderGraphInsights(insights);
   } catch (e) {
     c.innerHTML = `<div class="loading" style="color:var(--red);">Graph loading failed: ${e.message}</div>`;
   }
@@ -1282,6 +1304,162 @@ function toggleGraphFullscreen() {
   } else {
     document.exitFullscreen();
   }
+}
+
+// ═══════════════════════════════════════════
+//  Graph Insights Renderer
+// ═══════════════════════════════════════════
+function renderGraphInsights(insights) {
+  // Meta
+  const meta = document.getElementById('insights-meta');
+  if (meta) meta.textContent = `${insights.period_days}일간 분석 · ${insights.generated_at?.slice(0,10) || ''}`;
+
+  // ── Global insights ──
+  const globalDiv = document.getElementById('global-insights');
+  if (globalDiv) {
+    const allFindings = [...(insights.global_insights || [])];
+    // Collect all person findings too for summary badges
+    let warnCount = 0, posCount = 0, infoCount = 0;
+    (insights.person_summaries || []).forEach(p => {
+      (p.findings || []).forEach(f => {
+        if (f.type === 'warning') warnCount++;
+        else if (f.type === 'positive') posCount++;
+        else infoCount++;
+      });
+    });
+    allFindings.forEach(f => {
+      if (f.type === 'warning') warnCount++;
+      else if (f.type === 'positive') posCount++;
+      else infoCount++;
+    });
+
+    let html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="padding:8px 16px;background:rgba(0,184,148,0.1);border:1px solid rgba(0,184,148,0.3);border-radius:10px;font-size:13px;color:var(--green);">✅ 양호 <strong>${posCount}</strong></div>
+      <div style="padding:8px 16px;background:rgba(225,112,85,0.1);border:1px solid rgba(225,112,85,0.3);border-radius:10px;font-size:13px;color:var(--red);">⚠️ 주의 <strong>${warnCount}</strong></div>
+      <div style="padding:8px 16px;background:rgba(116,185,255,0.1);border:1px solid rgba(116,185,255,0.3);border-radius:10px;font-size:13px;color:var(--blue);">ℹ️ 정보 <strong>${infoCount}</strong></div>
+    </div>`;
+
+    if (allFindings.length > 0) {
+      html += allFindings.map(f => renderFinding(f)).join('');
+    }
+    globalDiv.innerHTML = html;
+  }
+
+  // ── Per-person summaries ──
+  const personGrid = document.getElementById('person-insights-grid');
+  if (personGrid && insights.person_summaries) {
+    personGrid.innerHTML = insights.person_summaries.map(p => {
+      const sleepHtml = p.sleep ? `
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0;">
+          <span style="font-size:12px;">😴 수면 <strong>${p.sleep.avg_duration}h</strong></span>
+          <span style="font-size:12px;">⭐ 질 <strong>${p.sleep.avg_quality}/100</strong></span>
+          <span style="font-size:12px;">📊 편차 <strong>±${p.sleep.consistency}h</strong></span>
+        </div>` : '';
+      const actHtml = p.activity ? `
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0;">
+          <span style="font-size:12px;">🏃 ${p.activity.total_sessions}회</span>
+          <span style="font-size:12px;">⏱ ${p.activity.total_minutes}분</span>
+          <span style="font-size:12px;">🔥 ${p.activity.total_calories}kcal</span>
+        </div>` : '';
+      const metricHtml = p.metrics ? `
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0;">
+          ${Object.entries(p.metrics).map(([k,v]) => {
+            const icon = k.includes('energy') ? '⚡' : k.includes('mood') ? '😊' : '📈';
+            const label = k.replace(/_/g,' ').replace('level','');
+            return `<span style="font-size:12px;">${icon} ${label} <strong>${v}</strong></span>`;
+          }).join('')}
+        </div>` : '';
+
+      const findingsHtml = (p.findings || []).map(f => renderFinding(f)).join('');
+
+      return `
+        <div class="detail-section" style="padding:16px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:24px;">${p.emoji}</span>
+            <div>
+              <strong style="font-size:15px;">${p.name}</strong>
+              <div style="font-size:11px;color:var(--text2);">${p.id}</div>
+            </div>
+          </div>
+          ${sleepHtml}${actHtml}${metricHtml}
+          <div style="margin-top:12px;">
+            ${findingsHtml || '<div style="font-size:12px;color:var(--text2);text-align:center;padding:8px;">특이 소견 없음</div>'}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Nutrition insights ──
+  const nutritionDiv = document.getElementById('nutrition-insights');
+  if (nutritionDiv && insights.nutrition) {
+    const n = insights.nutrition;
+    const topFoodsHtml = (n.top_foods || []).map((f, i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < n.top_foods.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+        <span style="font-size:13px;">${i < 3 ? ['🥇','🥈','🥉'][i] : `#${i+1}`} ${f.name}</span>
+        <span style="font-size:12px;color:var(--text2);">${f.count}회</span>
+      </div>
+    `).join('');
+
+    const catHtml = Object.entries(n.category_distribution || {}).map(([cat, cnt]) => {
+      const catEmoji = {'protein':'🥩','vegetable':'🥬','grain':'🌾','fruit':'🍎','dairy':'🥛','snack':'🍪','beverage':'🥤'}[cat] || '🍽️';
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--surface);border-radius:20px;font-size:12px;margin:3px;">${catEmoji} ${cat} <strong>${cnt}</strong></span>`;
+    }).join('');
+
+    nutritionDiv.innerHTML = `
+      <h3>🥗 식단 분석</h3>
+      <div style="margin:12px 0;font-size:13px;color:var(--text2);">총 <strong style="color:var(--text);">${n.unique_foods}</strong>종 식품 섭취</div>
+      <div style="margin-bottom:12px;">${catHtml}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">자주 먹는 식품 TOP ${n.top_foods?.length || 0}</div>
+      ${topFoodsHtml}
+    `;
+  }
+
+  // ── Structure insights ──
+  const structDiv = document.getElementById('structure-insights');
+  if (structDiv && insights.structure) {
+    const s = insights.structure;
+    const hubHtml = (s.hub_nodes || []).map((h, i) => {
+      const color = {'person':'#ff7f0e','day':'#2ca02c','food':'#e377c2','household':'#1f77b4','meal':'#d62728'}[h.type] || '#888';
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < s.hub_nodes.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span>
+            <span style="font-size:13px;">${h.label}</span>
+            <span style="font-size:10px;color:var(--text2);background:var(--surface);padding:2px 6px;border-radius:4px;">${h.type}</span>
+          </div>
+          <span style="font-size:12px;font-weight:600;color:var(--accent2);">${h.degree} connections</span>
+        </div>
+      `;
+    }).join('');
+
+    const compInfo = s.weakly_connected_components !== undefined
+      ? `Weakly: ${s.weakly_connected_components} · Strongly: ${s.strongly_connected_components}`
+      : `Components: ${s.connected_components}`;
+
+    structDiv.innerHTML = `
+      <h3>🔗 그래프 구조 분석</h3>
+      <div style="display:flex;gap:16px;margin:12px 0;flex-wrap:wrap;">
+        <span style="font-size:12px;">📊 노드 <strong>${s.total_nodes}</strong></span>
+        <span style="font-size:12px;">🔗 엣지 <strong>${s.total_edges}</strong></span>
+        <span style="font-size:12px;">🔄 ${compInfo}</span>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Hub 노드 (연결 수 상위)</div>
+      ${hubHtml}
+    `;
+  }
+}
+
+function renderFinding(f) {
+  const borderColor = f.type === 'warning' ? 'var(--red)' : f.type === 'positive' ? 'var(--green)' : 'var(--blue)';
+  const bgColor = f.type === 'warning' ? 'rgba(225,112,85,0.06)' : f.type === 'positive' ? 'rgba(0,184,148,0.06)' : 'rgba(116,185,255,0.06)';
+  return `
+    <div style="border-left:3px solid ${borderColor};background:${bgColor};border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${f.title}</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6;">${f.detail}</div>
+      ${f.recommendation ? `<div style="font-size:11px;color:var(--accent2);margin-top:4px;">💡 ${f.recommendation}</div>` : ''}
+    </div>
+  `;
 }
 
 // ═══════════════════════════════════════════

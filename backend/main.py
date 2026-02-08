@@ -110,6 +110,451 @@ def health():
     }
 
 
+# ---------------------------------------------------------
+# Graph Visualization API
+# ---------------------------------------------------------
+
+NODE_COLORS = {
+    "household": "#1f77b4",
+    "person": "#ff7f0e",
+    "day": "#2ca02c",
+    "activity": "#17becf",
+    "meal": "#d62728",
+    "sleep": "#9467bd",
+    "food": "#e377c2",
+    "metric": "#bcbd22",
+}
+NODE_SIZES = {
+    "household": 14,
+    "person": 12,
+    "day": 5,
+    "activity": 6,
+    "meal": 5,
+    "sleep": 6,
+    "food": 7,
+    "metric": 4,
+}
+
+
+@app.get("/api/graph/d3", tags=["Graph Visualization"])
+def get_graph_d3(days: int = 14, max_nodes: int = 500):
+    """Return graph data formatted for D3.js force-directed visualization."""
+    try:
+        G = build_single_child_household(num_days=days)
+
+        # Downsample if too many nodes
+        all_nodes = list(G.nodes())
+        if len(all_nodes) > max_nodes:
+            # Keep persons, household, days, and proportional sample of rest
+            priority = [n for n in all_nodes if G.nodes[n].get("type") in ("person", "household", "day")]
+            rest = [n for n in all_nodes if n not in priority]
+            import random
+            random.shuffle(rest)
+            keep = set(priority + rest[: max_nodes - len(priority)])
+            G = G.subgraph(keep).copy()
+
+        nodes = []
+        for n in G.nodes():
+            data = G.nodes[n]
+            ntype = data.get("type", "unknown")
+            label = data.get("name") or data.get("meal_type") or data.get("metric_type") or n.split(":")[-1]
+            node_obj = {
+                "id": n,
+                "label": label,
+                "type": ntype,
+                "color": NODE_COLORS.get(ntype, "#888"),
+                "size": NODE_SIZES.get(ntype, 5),
+            }
+            # Extra attributes for tooltip
+            if "date" in data:
+                node_obj["date"] = data["date"]
+            if "name" in data:
+                node_obj["name"] = data["name"]
+            if ntype == "sleep":
+                node_obj["duration"] = round(data.get("duration_hours", 0), 1)
+                node_obj["quality"] = round(data.get("quality_score", 0), 1)
+            if ntype == "food":
+                node_obj["kcal"] = data.get("kcal", 0)
+                node_obj["category"] = data.get("category", "")
+            if ntype == "metric":
+                node_obj["value"] = round(data.get("value", 0), 1)
+                node_obj["metric_type"] = data.get("metric_type", "")
+            if ntype == "activity":
+                node_obj["duration_min"] = data.get("duration_min", 0)
+                node_obj["intensity"] = data.get("intensity", "")
+                node_obj["calories_burned"] = data.get("calories_burned", 0)
+            nodes.append(node_obj)
+
+        links = []
+        for u, v, d in G.edges(data=True):
+            links.append({
+                "source": u,
+                "target": v,
+                "relation": d.get("relation", "connected"),
+            })
+
+        # Summary stats
+        node_types = {}
+        for n in G.nodes():
+            t = G.nodes[n].get("type", "unknown")
+            node_types[t] = node_types.get(t, 0) + 1
+
+        return {
+            "nodes": nodes,
+            "links": links,
+            "stats": {
+                "total_nodes": len(nodes),
+                "total_edges": len(links),
+                "node_types": node_types,
+            },
+        }
+    except Exception as e:
+        api_logger.error("Graph D3 export failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/stats", tags=["Graph Visualization"])
+def get_graph_viz_stats(days: int = 14):
+    """Get graph statistics for the visualization page."""
+    try:
+        G = build_single_child_household(num_days=days)
+
+        node_types = {}
+        persons = {}
+        for n in G.nodes():
+            data = G.nodes[n]
+            t = data.get("type", "unknown")
+            node_types[t] = node_types.get(t, 0) + 1
+            if t == "person":
+                persons[n] = data.get("name", n)
+
+        degrees = dict(G.degree())
+        avg_degree = sum(degrees.values()) / len(degrees) if degrees else 0
+        max_degree = max(degrees.values()) if degrees else 0
+        density = (2 * G.number_of_edges()) / (G.number_of_nodes() * (G.number_of_nodes() - 1)) if G.number_of_nodes() > 1 else 0
+
+        return {
+            "total_nodes": G.number_of_nodes(),
+            "total_edges": G.number_of_edges(),
+            "node_types": node_types,
+            "avg_degree": round(avg_degree, 2),
+            "max_degree": max_degree,
+            "density": round(density, 6),
+            "persons": persons,
+            "days": days,
+        }
+    except Exception as e:
+        api_logger.error("Graph stats failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/insights", tags=["Graph Visualization"])
+def get_graph_insights(days: int = 14):
+    """
+    Analyze the health graph and return key insights & implications.
+
+    Returns structural analysis, nutritional patterns, sleep quality trends,
+    activity correlations, and actionable recommendations.
+    """
+    try:
+        G = build_single_child_household(num_days=days)
+        insights = _analyze_graph_insights(G, days)
+        return insights
+    except Exception as e:
+        api_logger.error("Graph insights failed", exc=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _analyze_graph_insights(G, days: int) -> dict:
+    """Extract meaningful insights from the health graph."""
+    import statistics
+
+    persons = {}
+    sleep_data = {}       # person -> [duration, quality]
+    meal_data = {}        # person -> [meal_count_per_day]
+    food_freq = {}        # food_name -> count
+    food_categories = {}  # category -> count
+    activity_data = {}    # person -> [(name, duration, intensity, cal)]
+    metric_data = {}      # person -> {metric_type -> [values]}
+    day_count = {}        # person -> count
+
+    for n in G.nodes():
+        d = G.nodes[n]
+        t = d.get("type")
+        pid = d.get("person_id", "")
+
+        if t == "person":
+            persons[n] = d
+        elif t == "sleep":
+            sleep_data.setdefault(pid, []).append({
+                "duration": d.get("duration_hours", 0),
+                "quality": d.get("quality_score", 0),
+                "date": d.get("date", ""),
+            })
+        elif t == "day":
+            day_count[pid] = day_count.get(pid, 0) + 1
+        elif t == "activity":
+            activity_data.setdefault(pid, []).append({
+                "name": d.get("name", ""),
+                "duration_min": d.get("duration_min", 0),
+                "intensity": d.get("intensity", ""),
+                "calories": d.get("calories_burned", 0),
+            })
+        elif t == "metric":
+            metric_data.setdefault(pid, {}).setdefault(
+                d.get("metric_type", "unknown"), []
+            ).append(d.get("value", 0))
+        elif t == "food":
+            fname = d.get("name", "unknown")
+            fcat = d.get("category", "unknown")
+            food_freq[fname] = food_freq.get(fname, 0) + 1
+            food_categories[fcat] = food_categories.get(fcat, 0) + 1
+
+    # Count meals per person
+    for n in G.nodes():
+        d = G.nodes[n]
+        if d.get("type") == "meal":
+            pid = d.get("person_id", "")
+            meal_data.setdefault(pid, []).append(d.get("meal_type", ""))
+
+    # ── Build insights ──
+    result_insights = []
+    person_summaries = []
+
+    for pid, pdata in persons.items():
+        pname = pdata.get("name", pid)
+        pemoji = pdata.get("emoji", "👤")
+        p_sleep = sleep_data.get(pid, [])
+        p_activities = activity_data.get(pid, [])
+        p_metrics = metric_data.get(pid, {})
+
+        summary = {"name": pname, "emoji": pemoji, "id": pid, "findings": []}
+
+        # ── Sleep Analysis ──
+        if p_sleep:
+            durations = [s["duration"] for s in p_sleep]
+            qualities = [s["quality"] for s in p_sleep]
+            avg_dur = statistics.mean(durations)
+            avg_qual = statistics.mean(qualities)
+            min_dur = min(durations)
+            max_dur = max(durations)
+            std_dur = statistics.stdev(durations) if len(durations) > 1 else 0
+
+            sleep_emoji = "✅" if avg_dur >= 8 else ("⚠️" if avg_dur >= 6.5 else "🔴")
+            summary["sleep"] = {
+                "avg_duration": round(avg_dur, 1),
+                "avg_quality": round(avg_qual, 1),
+                "min_duration": round(min_dur, 1),
+                "max_duration": round(max_dur, 1),
+                "consistency": round(std_dur, 2),
+            }
+            # Generate findings
+            if avg_dur < 7:
+                summary["findings"].append({
+                    "type": "warning",
+                    "category": "sleep",
+                    "title": f"{sleep_emoji} 수면 부족 감지",
+                    "detail": f"평균 수면 {avg_dur:.1f}시간 — 권장 7-9시간에 미달합니다.",
+                    "recommendation": "취침 시간을 30분 앞당기는 것을 권장합니다.",
+                })
+            elif avg_dur >= 8.5:
+                summary["findings"].append({
+                    "type": "positive",
+                    "category": "sleep",
+                    "title": f"{sleep_emoji} 우수한 수면 패턴",
+                    "detail": f"평균 {avg_dur:.1f}시간 수면으로 충분한 휴식을 취하고 있습니다.",
+                })
+            if std_dur > 1.5:
+                summary["findings"].append({
+                    "type": "warning",
+                    "category": "sleep",
+                    "title": "⏰ 불규칙한 수면 시간",
+                    "detail": f"수면 편차 {std_dur:.1f}시간 — 일정한 취침 패턴이 필요합니다.",
+                    "recommendation": "매일 같은 시간에 취침/기상하는 습관을 들이세요.",
+                })
+            if avg_qual < 60:
+                summary["findings"].append({
+                    "type": "warning",
+                    "category": "sleep",
+                    "title": "😴 수면 질 저하",
+                    "detail": f"평균 수면 질 {avg_qual:.0f}/100으로 개선이 필요합니다.",
+                    "recommendation": "취침 전 전자기기 사용을 줄이고 조용한 환경을 만드세요.",
+                })
+            elif avg_qual >= 80:
+                summary["findings"].append({
+                    "type": "positive",
+                    "category": "sleep",
+                    "title": "😊 수면 질 양호",
+                    "detail": f"평균 수면 질 {avg_qual:.0f}/100으로 양호합니다.",
+                })
+
+        # ── Activity Analysis ──
+        if p_activities:
+            total_cal = sum(a["calories"] for a in p_activities)
+            total_min = sum(a["duration_min"] for a in p_activities)
+            act_names = [a["name"] for a in p_activities]
+            unique_activities = list(set(act_names))
+            high_intensity = sum(1 for a in p_activities if a["intensity"] == "high")
+
+            summary["activity"] = {
+                "total_sessions": len(p_activities),
+                "total_minutes": total_min,
+                "total_calories": total_cal,
+                "unique_activities": unique_activities,
+                "high_intensity_count": high_intensity,
+            }
+
+            days_with_activity = len(p_activities)
+            if days_with_activity / max(day_count.get(pid, 1), 1) < 0.4:
+                summary["findings"].append({
+                    "type": "warning",
+                    "category": "activity",
+                    "title": "🏃 운동 빈도 부족",
+                    "detail": f"{days}일 중 {days_with_activity}회 운동 — 더 자주 움직여야 합니다.",
+                    "recommendation": "매일 최소 30분 가벼운 활동을 추천합니다.",
+                })
+            else:
+                summary["findings"].append({
+                    "type": "positive",
+                    "category": "activity",
+                    "title": "💪 활발한 운동 습관",
+                    "detail": f"{days_with_activity}회 운동, 총 {total_min}분, {total_cal}kcal 소모",
+                })
+
+            if unique_activities:
+                summary["findings"].append({
+                    "type": "info",
+                    "category": "activity",
+                    "title": "🎯 주요 활동 종목",
+                    "detail": ", ".join(unique_activities),
+                })
+
+        # ── Metric Analysis ──
+        for mtype, values in p_metrics.items():
+            avg_v = statistics.mean(values)
+            if mtype == "energy_level" and avg_v < 50:
+                summary["findings"].append({
+                    "type": "warning",
+                    "category": "wellness",
+                    "title": "⚡ 낮은 에너지 수준",
+                    "detail": f"평균 에너지 {avg_v:.0f}/100 — 식이/수면 개선이 필요합니다.",
+                })
+            elif mtype == "energy_level" and avg_v >= 70:
+                summary["findings"].append({
+                    "type": "positive",
+                    "category": "wellness",
+                    "title": "⚡ 에너지 수준 양호",
+                    "detail": f"평균 에너지 {avg_v:.0f}/100",
+                })
+            if mtype == "mood" and avg_v < 50:
+                summary["findings"].append({
+                    "type": "warning",
+                    "category": "wellness",
+                    "title": "😔 기분 저하 경향",
+                    "detail": f"평균 기분 점수 {avg_v:.0f}/100 — 주의가 필요합니다.",
+                    "recommendation": "신체 활동 증가와 충분한 수면이 기분 개선에 도움됩니다.",
+                })
+            elif mtype == "mood" and avg_v >= 70:
+                summary["findings"].append({
+                    "type": "positive",
+                    "category": "wellness",
+                    "title": "😊 기분 상태 양호",
+                    "detail": f"평균 기분 점수 {avg_v:.0f}/100",
+                })
+
+            summary.setdefault("metrics", {})[mtype] = round(avg_v, 1)
+
+        person_summaries.append(summary)
+
+    # ── Overall Nutritional Analysis ──
+    top_foods = sorted(food_freq.items(), key=lambda x: x[1], reverse=True)[:10]
+    cat_dist = sorted(food_categories.items(), key=lambda x: x[1], reverse=True)
+
+    nutrition_insight = {
+        "top_foods": [{"name": f, "count": c} for f, c in top_foods],
+        "category_distribution": {k: v for k, v in cat_dist},
+        "unique_foods": len(food_freq),
+    }
+
+    # Food diversity finding
+    if len(food_freq) < 8:
+        result_insights.append({
+            "type": "warning",
+            "category": "nutrition",
+            "title": "🥗 식단 다양성 부족",
+            "detail": f"전체 {len(food_freq)}종의 식품만 섭취 — 다양한 영양소 섭취가 필요합니다.",
+            "recommendation": "매주 새로운 과일, 채소, 단백질원을 추가해보세요.",
+        })
+    elif len(food_freq) >= 15:
+        result_insights.append({
+            "type": "positive",
+            "category": "nutrition",
+            "title": "🥗 식단 다양성 우수",
+            "detail": f"전체 {len(food_freq)}종의 다양한 식품을 섭취하고 있습니다.",
+        })
+
+    # Category balance check
+    protein_count = food_categories.get("protein", 0)
+    vegetable_count = food_categories.get("vegetable", 0)
+    if vegetable_count == 0:
+        result_insights.append({
+            "type": "warning",
+            "category": "nutrition",
+            "title": "🥬 채소 섭취 부족",
+            "detail": "기간 내 채소 섭취 기록이 없습니다.",
+            "recommendation": "매 끼니에 채소를 추가하세요.",
+        })
+
+    # ── Graph Structure Insights ──
+    degrees = dict(G.degree())
+    hub_nodes = sorted(degrees.items(), key=lambda x: x[1], reverse=True)[:5]
+    hub_info = []
+    for n_id, deg in hub_nodes:
+        nd = G.nodes[n_id]
+        hub_info.append({
+            "id": n_id,
+            "label": nd.get("name") or nd.get("meal_type") or n_id.split(":")[-1],
+            "type": nd.get("type", "unknown"),
+            "degree": deg,
+        })
+
+    # Connected components
+    if G.is_directed():
+        import networkx as nx
+        n_weakly = nx.number_weakly_connected_components(G)
+        n_strongly = nx.number_strongly_connected_components(G)
+        structure_info = {
+            "weakly_connected_components": n_weakly,
+            "strongly_connected_components": n_strongly,
+        }
+    else:
+        import networkx as nx
+        structure_info = {
+            "connected_components": nx.number_connected_components(G),
+        }
+
+    structure_info["hub_nodes"] = hub_info
+    structure_info["total_nodes"] = G.number_of_nodes()
+    structure_info["total_edges"] = G.number_of_edges()
+
+    if n_weakly > 1 if G.is_directed() else structure_info.get("connected_components", 1) > 1:
+        result_insights.append({
+            "type": "info",
+            "category": "structure",
+            "title": "🔗 분리된 그래프 컴포넌트 발견",
+            "detail": "그래프에 연결되지 않은 독립 컴포넌트가 존재합니다. 일부 건강 데이터 간 기록 누락 가능성이 있습니다.",
+        })
+
+    return {
+        "period_days": days,
+        "person_summaries": person_summaries,
+        "nutrition": nutrition_insight,
+        "structure": structure_info,
+        "global_insights": result_insights,
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
 @app.get("/ml/debug/graph-stats", tags=["Debug"])
 def get_graph_stats(days: int = 60):
     """Get comprehensive graph statistics."""
