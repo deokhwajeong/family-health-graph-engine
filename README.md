@@ -1,5 +1,5 @@
 
-# 🏠 Family Health Graph Engine
+# Family Health Graph Engine
 
 > **Graph-based family health modeling + AI-powered dashboard**
 >
@@ -12,22 +12,22 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [Motivation](#-motivation)
-- [Key Concepts](#-key-concepts)
-- [Screenshots](#-screenshots)
-- [Architecture](#-architecture)
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [API Endpoints](#-api-endpoints)
-- [Quick Start](#-quick-start)
-- [Project Structure](#-project-structure)
-- [Roadmap](#-roadmap)
+- [Motivation](#motivation)
+- [Key Concepts](#key-concepts)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [API Endpoints](#api-endpoints-67)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
 
 ---
 
-## 💡 Motivation
+## Motivation
 
 Family members' health data (sleep, diet, activity, vitals) is closely interconnected. Traditional table-based approaches struggle to capture these **relationships**.
 
@@ -41,7 +41,7 @@ This project:
 
 ---
 
-## 🧠 Key Concepts
+## Key Concepts
 
 ```
 Household ──has_member──▶ Person
@@ -56,7 +56,7 @@ Day ──has_activity──▶ Activity
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 ### Dashboard Overview
 ![Dashboard Overview](docs/images/dashboard_overview.png)
@@ -84,7 +84,7 @@ Day ──has_activity──▶ Activity
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -123,7 +123,7 @@ Day ──has_activity──▶ Activity
 
 ---
 
-## ✅ Features
+## Features
 
 ### Core Graph Engine
 - [x] Health knowledge graph based on NetworkX DiGraph
@@ -169,7 +169,7 @@ Day ──has_activity──▶ Activity
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Category | Technologies |
 |----------|-------------|
@@ -185,7 +185,7 @@ Day ──has_activity──▶ Activity
 
 ---
 
-## 📡 API Endpoints (67+)
+## API Endpoints (67+)
 
 ### System
 | Method | Endpoint | Description |
@@ -289,11 +289,11 @@ Day ──has_activity──▶ Activity
 | GET | `/debug/synthetic-graph/svg` | Synthetic graph SVG |
 | GET | `/debug/synthetic-graph/html` | Synthetic graph HTML |
 
-> 💡 Full API documentation: After starting the server, visit `http://localhost:8000/docs` (Swagger UI)
+> Full API documentation available at `http://localhost:8000/docs` (Swagger UI) after starting the server.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone & Install
 
@@ -338,7 +338,7 @@ http://localhost:8000/redoc     # ReDoc
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 family-health-graph-engine/
@@ -386,15 +386,15 @@ family-health-graph-engine/
 
 ---
 
-## 🗺 Roadmap
+## Roadmap
 
-### Phase 1 — Core Graph Engine ✅
+### Phase 1 — Core Graph Engine (Complete)
 - [x] Health knowledge graph modeling
 - [x] Synthetic data generation
 - [x] Graph visualization (SVG, D3.js)
 - [x] Basic CRUD API
 
-### Phase 2 — ML & AI ✅
+### Phase 2 — ML & AI (Complete)
 - [x] Graph embeddings (Node2Vec)
 - [x] Anomaly detection (Isolation Forest)
 - [x] Health metric prediction
@@ -404,7 +404,7 @@ family-health-graph-engine/
 - [x] Ethics & Governance module
 - [x] Apple Health integration
 
-### Phase 3 — Production Ready 🔜
+### Phase 3 — Production Ready (Planned)
 - [ ] User authentication (OAuth2 / JWT)
 - [ ] PostgreSQL / Neo4j persistence
 - [ ] TV UI ambient display
@@ -415,12 +415,6 @@ family-health-graph-engine/
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
-
----
-
-<p align="center">
-  <sub>Built with ❤️ for family health insights</sub>
-</p>
