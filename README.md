@@ -3,7 +3,7 @@
 
 > **Graph-based family health modeling + AI-powered dashboard**
 >
-> 가족 건강 데이터를 지식 그래프로 모델링하고, ML/LLM/RAG를 활용하여 인사이트를 제공하는 풀스택 포트폴리오 프로젝트
+> A full-stack portfolio project that models family health data as a knowledge graph and provides insights using ML/LLM/RAG
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -29,15 +29,15 @@
 
 ## 💡 Motivation
 
-가족 구성원의 건강 데이터(수면, 식단, 활동, 바이탈)는 서로 밀접하게 연결되어 있습니다. 기존의 테이블 기반 접근으로는 이러한 **관계성**을 포착하기 어렵습니다.
+Family members' health data (sleep, diet, activity, vitals) is closely interconnected. Traditional table-based approaches struggle to capture these **relationships**.
 
-이 프로젝트는:
-- **Knowledge Graph**로 건강 데이터 간 관계를 모델링
-- **GNN / Link Prediction / Anomaly Detection** 등 그래프 ML로 패턴 발견
-- **LLM (GPT-4o)** 으로 자연어 건강 상담 및 추천
-- **RAG (ChromaDB)** 로 그래프 기반 시맨틱 검색
-- **OCR + Vision AI**로 음식 사진 자동 분석
-- **Ethics Module**로 개인정보 보호·동의·공정성·거버넌스 관리
+This project:
+- Models relationships between health data using a **Knowledge Graph**
+- Discovers patterns through graph ML such as **GNN / Link Prediction / Anomaly Detection**
+- Provides natural language health consultation and recommendations via **LLM (GPT-4o)**
+- Enables graph-based semantic search with **RAG (ChromaDB)**
+- Automatically analyzes food photos using **OCR + Vision AI**
+- Manages privacy, consent, fairness, and governance through an **Ethics Module**
 
 ---
 
@@ -52,7 +52,7 @@ Day ──has_metric──▶ Metric (heart rate, energy, mood, focus)
 Day ──has_activity──▶ Activity
 ```
 
-**8가지 노드 타입**: Household · Person · Day · Meal · Food · Sleep · Metric · Activity
+**8 Node Types**: Household · Person · Day · Meal · Food · Sleep · Metric · Activity
 
 ---
 
@@ -126,46 +126,46 @@ Day ──has_activity──▶ Activity
 ## ✅ Features
 
 ### Core Graph Engine
-- [x] NetworkX DiGraph 기반 건강 지식 그래프
-- [x] 8가지 노드 타입, 관계 정의
-- [x] 합성 데이터 생성기 (14일 다인 가구)
-- [x] D3.js Force-Directed 그래프 시각화
-- [x] 그래프 인사이트 분석 (수면, 활동, 영양, 구조)
+- [x] Health knowledge graph based on NetworkX DiGraph
+- [x] 8 node types with relationship definitions
+- [x] Synthetic data generator (14-day multi-person household)
+- [x] D3.js Force-Directed graph visualization
+- [x] Graph insight analysis (sleep, activity, nutrition, structure)
 
 ### ML / AI Pipeline
-- [x] Node2Vec 그래프 임베딩 (128차원)
-- [x] Isolation Forest 이상 탐지
-- [x] 건강 지표 예측 (Ridge Regression)
-- [x] Link Prediction (공통 이웃, Jaccard 계수)
-- [x] 음식/활동 분류기 (Random Forest)
-- [x] 연관 규칙 분석 (Apriori)
+- [x] Node2Vec graph embeddings (128 dimensions)
+- [x] Isolation Forest anomaly detection
+- [x] Health metric prediction (Ridge Regression)
+- [x] Link Prediction (common neighbors, Jaccard coefficient)
+- [x] Food/Activity classifier (Random Forest)
+- [x] Association rule mining (Apriori)
 
 ### LLM & RAG
-- [x] GPT-4o / GPT-4o-mini 채팅 엔진
-- [x] 스트리밍 응답 (SSE)
-- [x] 세션 관리 및 대화 이력
-- [x] 건강 추천 생성 (그래프 컨텍스트 기반)
-- [x] ChromaDB 벡터 스토어
-- [x] 시맨틱 검색 및 자동 인덱싱
+- [x] GPT-4o / GPT-4o-mini chat engine
+- [x] Streaming responses (SSE)
+- [x] Session management and conversation history
+- [x] Health recommendation generation (graph context-based)
+- [x] ChromaDB vector store
+- [x] Semantic search and auto-indexing
 
 ### Food Analysis
-- [x] Tesseract OCR (한국어 + 영어)
-- [x] LLM Vision 분석 (GPT-4o)
-- [x] 텍스트 기반 음식 분석
-- [x] 자동 그래프 노드 추가
+- [x] Tesseract OCR (Korean + English)
+- [x] LLM Vision analysis (GPT-4o)
+- [x] Text-based food analysis
+- [x] Automatic graph node insertion
 
 ### Apple Health Integration
-- [x] Apple Health XML 가져오기
-- [x] iOS Shortcuts 연동 (걸음수, 심박수, 수면, 칼로리)
-- [x] Shortcuts 가이드 페이지
+- [x] Apple Health XML import
+- [x] iOS Shortcuts integration (steps, heart rate, sleep, calories)
+- [x] Shortcuts guide page
 
 ### Ethics & Governance
-- [x] 개인정보 스캔 및 익명화
-- [x] 동의 관리 (부여/철회/감사 추적)
-- [x] 미성년자 보호 (후견인 승인)
-- [x] 공정성 감사 (이상탐지 편향 검사)
-- [x] 투명성 (모델 카드, 의사결정 로그)
-- [x] 거버넌스 (데이터 보존, 삭제 요청)
+- [x] PII scanning and anonymization
+- [x] Consent management (grant/withdraw/audit trail)
+- [x] Minor protection (guardian approval)
+- [x] Fairness audit (anomaly detection bias check)
+- [x] Transparency (model cards, decision logs)
+- [x] Governance (data retention, deletion requests)
 
 ---
 
@@ -196,100 +196,100 @@ Day ──has_activity──▶ Activity
 ### Graph Visualization
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/graph/d3` | D3.js 포스 그래프 데이터 |
-| GET | `/api/graph/stats` | 그래프 통계 (밀도, 차수 등) |
-| GET | `/api/graph/insights` | 건강 인사이트 분석 |
+| GET | `/api/graph/d3` | D3.js force graph data |
+| GET | `/api/graph/stats` | Graph statistics (density, degree, etc.) |
+| GET | `/api/graph/insights` | Health insight analysis |
 
 ### ML & Embeddings
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/ml/embeddings/train` | 그래프 임베딩 학습 |
-| GET | `/ml/embeddings/daily/{person_id}/{date}` | 일별 임베딩 벡터 |
-| POST | `/ml/anomalies/train` | 이상탐지 모델 학습 |
-| GET | `/ml/anomalies/detect/{person_id}/{date}` | 이상 탐지 |
-| GET | `/ml/anomalies/correlations/{person_id}` | 상관관계 분석 |
-| POST | `/ml/prediction/train` | 예측 모델 학습 |
-| GET | `/ml/prediction/metrics/{person_id}/{date}` | 지표 예측 |
-| GET | `/ml/patterns/association-rules/{person_id}` | 연관 규칙 |
-| POST | `/ml/link-prediction/train` | 링크 예측 학습 |
-| GET | `/ml/link-prediction/suggest` | 링크 예측 제안 |
-| POST | `/ml/classification/train` | 분류 모델 학습 |
-| GET | `/ml/classification/food/{food_id}` | 음식 분류 |
-| GET | `/ml/classification/activity/{activity_id}` | 활동 분류 |
-| GET | `/ml/classification/daily-status/{person_id}/{date}` | 일일 상태 |
-| GET | `/ml/insights/daily/{person_id}/{date}` | 일일 종합 인사이트 |
-| GET | `/ml/summary/{person_id}` | 개인 건강 요약 |
+| POST | `/ml/embeddings/train` | Train graph embeddings |
+| GET | `/ml/embeddings/daily/{person_id}/{date}` | Daily embedding vector |
+| POST | `/ml/anomalies/train` | Train anomaly detection model |
+| GET | `/ml/anomalies/detect/{person_id}/{date}` | Detect anomalies |
+| GET | `/ml/anomalies/correlations/{person_id}` | Correlation analysis |
+| POST | `/ml/prediction/train` | Train prediction model |
+| GET | `/ml/prediction/metrics/{person_id}/{date}` | Metric prediction |
+| GET | `/ml/patterns/association-rules/{person_id}` | Association rules |
+| POST | `/ml/link-prediction/train` | Train link prediction |
+| GET | `/ml/link-prediction/suggest` | Link prediction suggestions |
+| POST | `/ml/classification/train` | Train classification model |
+| GET | `/ml/classification/food/{food_id}` | Food classification |
+| GET | `/ml/classification/activity/{activity_id}` | Activity classification |
+| GET | `/ml/classification/daily-status/{person_id}/{date}` | Daily status |
+| GET | `/ml/insights/daily/{person_id}/{date}` | Daily comprehensive insights |
+| GET | `/ml/summary/{person_id}` | Personal health summary |
 
 ### LLM (GPT-4o)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/llm/status` | LLM 설정 상태 |
-| POST | `/llm/configure` | LLM 설정 (API 키) |
-| POST | `/llm/chat` | 채팅 (동기) |
-| POST | `/llm/chat/stream` | 채팅 (스트리밍 SSE) |
-| GET | `/llm/history/{session_id}` | 대화 이력 조회 |
-| DELETE | `/llm/history/{session_id}` | 대화 이력 삭제 |
-| POST | `/llm/recommend/{person_id}` | 건강 추천 생성 |
+| GET | `/llm/status` | LLM configuration status |
+| POST | `/llm/configure` | Configure LLM (API key) |
+| POST | `/llm/chat` | Chat (synchronous) |
+| POST | `/llm/chat/stream` | Chat (streaming SSE) |
+| GET | `/llm/history/{session_id}` | Retrieve conversation history |
+| DELETE | `/llm/history/{session_id}` | Delete conversation history |
+| POST | `/llm/recommend/{person_id}` | Generate health recommendations |
 
 ### RAG (Semantic Search)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/rag/index` | 그래프 데이터 인덱싱 |
-| POST | `/rag/query` | RAG 질의 |
-| GET | `/rag/search` | 시맨틱 검색 |
-| POST | `/rag/reindex` | 데이터 재인덱싱 |
-| GET | `/rag/stats` | RAG 통계 |
+| POST | `/rag/index` | Index graph data |
+| POST | `/rag/query` | RAG query |
+| GET | `/rag/search` | Semantic search |
+| POST | `/rag/reindex` | Reindex data |
+| GET | `/rag/stats` | RAG statistics |
 
 ### Food Analysis
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/food/analyze-image` | 음식 사진 OCR 분석 |
-| POST | `/api/food/analyze-text` | 텍스트 음식 분석 |
-| POST | `/api/food/analyze-llm` | LLM 비전 음식 분석 |
+| POST | `/api/food/analyze-image` | Food photo OCR analysis |
+| POST | `/api/food/analyze-text` | Text-based food analysis |
+| POST | `/api/food/analyze-llm` | LLM vision food analysis |
 
 ### Apple Health / iOS Shortcuts
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/health/import-xml` | Apple Health XML 가져오기 |
-| POST | `/api/health/steps` | 걸음수 기록 |
-| POST | `/api/health/heart-rate` | 심박수 기록 |
-| POST | `/api/health/sleep` | 수면 기록 |
-| POST | `/api/health/calories` | 칼로리 기록 |
-| GET | `/api/health/shortcuts-guide` | iOS Shortcuts 가이드 |
+| POST | `/api/health/import-xml` | Import Apple Health XML |
+| POST | `/api/health/steps` | Record steps |
+| POST | `/api/health/heart-rate` | Record heart rate |
+| POST | `/api/health/sleep` | Record sleep |
+| POST | `/api/health/calories` | Record calories |
+| GET | `/api/health/shortcuts-guide` | iOS Shortcuts guide |
 
 ### Ethics & Governance (17 endpoints)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/ethics/privacy/scan` | 개인정보 스캔 |
-| POST | `/ethics/privacy/anonymize` | 데이터 익명화 |
-| POST | `/ethics/consent/grant` | 동의 부여 |
-| POST | `/ethics/consent/withdraw` | 동의 철회 |
-| GET | `/ethics/consent/{person_id}` | 동의 상태 조회 |
-| GET | `/ethics/consent/audit-trail` | 감사 추적 |
-| GET | `/ethics/minors/detect` | 미성년자 탐지 |
-| POST | `/ethics/minors/setup-guardians` | 후견인 설정 |
-| GET | `/ethics/minors/evaluate/{person_id}` | 미성년자 평가 |
-| POST | `/ethics/fairness/audit-anomalies` | 공정성 감사 |
-| GET | `/ethics/fairness/history` | 공정성 이력 |
-| GET | `/ethics/transparency/model-card/{model_name}` | 모델 카드 |
-| GET | `/ethics/transparency/compliance-report` | 컴플라이언스 리포트 |
-| GET | `/ethics/transparency/decisions` | 의사결정 로그 |
-| GET | `/ethics/governance/retention` | 데이터 보존 정책 |
-| POST | `/ethics/governance/deletion-request` | 삭제 요청 |
-| GET | `/ethics/governance/data-inventory` | 데이터 인벤토리 |
-| GET | `/ethics/audit` | 종합 윤리 감사 |
+| GET | `/ethics/privacy/scan` | PII scan |
+| POST | `/ethics/privacy/anonymize` | Data anonymization |
+| POST | `/ethics/consent/grant` | Grant consent |
+| POST | `/ethics/consent/withdraw` | Withdraw consent |
+| GET | `/ethics/consent/{person_id}` | Consent status |
+| GET | `/ethics/consent/audit-trail` | Audit trail |
+| GET | `/ethics/minors/detect` | Detect minors |
+| POST | `/ethics/minors/setup-guardians` | Set up guardians |
+| GET | `/ethics/minors/evaluate/{person_id}` | Evaluate minor |
+| POST | `/ethics/fairness/audit-anomalies` | Fairness audit |
+| GET | `/ethics/fairness/history` | Fairness history |
+| GET | `/ethics/transparency/model-card/{model_name}` | Model card |
+| GET | `/ethics/transparency/compliance-report` | Compliance report |
+| GET | `/ethics/transparency/decisions` | Decision log |
+| GET | `/ethics/governance/retention` | Data retention policy |
+| POST | `/ethics/governance/deletion-request` | Deletion request |
+| GET | `/ethics/governance/data-inventory` | Data inventory |
+| GET | `/ethics/audit` | Comprehensive ethics audit |
 
 ### Debug
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/ml/debug/graph-stats` | 그래프 ML 통계 |
-| GET | `/debug/example-graph` | 예제 그래프 |
-| GET | `/debug/synthetic-graph` | 합성 그래프 |
-| GET | `/debug/example-graph/svg` | 예제 그래프 SVG |
-| GET | `/debug/synthetic-graph/svg` | 합성 그래프 SVG |
-| GET | `/debug/synthetic-graph/html` | 합성 그래프 HTML |
+| GET | `/ml/debug/graph-stats` | Graph ML statistics |
+| GET | `/debug/example-graph` | Example graph |
+| GET | `/debug/synthetic-graph` | Synthetic graph |
+| GET | `/debug/example-graph/svg` | Example graph SVG |
+| GET | `/debug/synthetic-graph/svg` | Synthetic graph SVG |
+| GET | `/debug/synthetic-graph/html` | Synthetic graph HTML |
 
-> 💡 전체 API 문서: 서버 실행 후 `http://localhost:8000/docs` (Swagger UI)
+> 💡 Full API documentation: After starting the server, visit `http://localhost:8000/docs` (Swagger UI)
 
 ---
 
@@ -309,11 +309,11 @@ pip install -r backend/requirements.txt
 
 ### 2. Environment Variables (Optional)
 
-LLM/RAG 기능을 사용하려면 `.env` 파일을 프로젝트 루트에 생성:
+To use LLM/RAG features, create a `.env` file in the project root:
 
 ```env
 OPENAI_API_KEY=sk-your-api-key
-OPENAI_MODEL=gpt-4o           # 기본값: gpt-4o-mini
+OPENAI_MODEL=gpt-4o           # Default: gpt-4o-mini
 ```
 
 ### 3. Run Server
@@ -389,29 +389,29 @@ family-health-graph-engine/
 ## 🗺 Roadmap
 
 ### Phase 1 — Core Graph Engine ✅
-- [x] 건강 지식 그래프 모델링
-- [x] 합성 데이터 생성
-- [x] 그래프 시각화 (SVG, D3.js)
-- [x] 기본 CRUD API
+- [x] Health knowledge graph modeling
+- [x] Synthetic data generation
+- [x] Graph visualization (SVG, D3.js)
+- [x] Basic CRUD API
 
 ### Phase 2 — ML & AI ✅
-- [x] 그래프 임베딩 (Node2Vec)
-- [x] 이상 탐지 (Isolation Forest)
-- [x] 건강 지표 예측
-- [x] LLM 채팅 엔진 (GPT-4o)
-- [x] RAG 시맨틱 검색 (ChromaDB)
-- [x] 음식 사진 OCR 분석
-- [x] Ethics & Governance 모듈
-- [x] Apple Health 연동
+- [x] Graph embeddings (Node2Vec)
+- [x] Anomaly detection (Isolation Forest)
+- [x] Health metric prediction
+- [x] LLM chat engine (GPT-4o)
+- [x] RAG semantic search (ChromaDB)
+- [x] Food photo OCR analysis
+- [x] Ethics & Governance module
+- [x] Apple Health integration
 
 ### Phase 3 — Production Ready 🔜
-- [ ] 사용자 인증 (OAuth2 / JWT)
-- [ ] PostgreSQL / Neo4j 영속성
-- [ ] TV UI 앰비언트 디스플레이
-- [ ] Mobile PWA 최적화
-- [ ] Multi-household 지원
-- [ ] CI/CD 파이프라인
-- [ ] Docker Compose 배포
+- [ ] User authentication (OAuth2 / JWT)
+- [ ] PostgreSQL / Neo4j persistence
+- [ ] TV UI ambient display
+- [ ] Mobile PWA optimization
+- [ ] Multi-household support
+- [ ] CI/CD pipeline
+- [ ] Docker Compose deployment
 
 ---
 

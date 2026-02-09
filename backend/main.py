@@ -359,39 +359,39 @@ def _analyze_graph_insights(G, days: int) -> dict:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "sleep",
-                    "title": f"{sleep_emoji} 수면 부족 감지",
-                    "detail": f"평균 수면 {avg_dur:.1f}시간 — 권장 7-9시간에 미달합니다.",
-                    "recommendation": "취침 시간을 30분 앞당기는 것을 권장합니다.",
+                    "title": f"{sleep_emoji} Insufficient Sleep Detected",
+                    "detail": f"Average sleep {avg_dur:.1f}h — below the recommended 7-9 hours.",
+                    "recommendation": "Consider moving your bedtime 30 minutes earlier.",
                 })
             elif avg_dur >= 8.5:
                 summary["findings"].append({
                     "type": "positive",
                     "category": "sleep",
-                    "title": f"{sleep_emoji} 우수한 수면 패턴",
-                    "detail": f"평균 {avg_dur:.1f}시간 수면으로 충분한 휴식을 취하고 있습니다.",
+                    "title": f"{sleep_emoji} Excellent Sleep Pattern",
+                    "detail": f"Averaging {avg_dur:.1f}h of sleep — getting sufficient rest.",
                 })
             if std_dur > 1.5:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "sleep",
-                    "title": "⏰ 불규칙한 수면 시간",
-                    "detail": f"수면 편차 {std_dur:.1f}시간 — 일정한 취침 패턴이 필요합니다.",
-                    "recommendation": "매일 같은 시간에 취침/기상하는 습관을 들이세요.",
+                    "title": "⏰ Irregular Sleep Schedule",
+                    "detail": f"Sleep deviation {std_dur:.1f}h — a consistent bedtime pattern is needed.",
+                    "recommendation": "Try going to bed and waking up at the same time every day.",
                 })
             if avg_qual < 60:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "sleep",
-                    "title": "😴 수면 질 저하",
-                    "detail": f"평균 수면 질 {avg_qual:.0f}/100으로 개선이 필요합니다.",
-                    "recommendation": "취침 전 전자기기 사용을 줄이고 조용한 환경을 만드세요.",
+                    "title": "😴 Low Sleep Quality",
+                    "detail": f"Average sleep quality {avg_qual:.0f}/100 — improvement needed.",
+                    "recommendation": "Reduce screen time before bed and create a quiet environment.",
                 })
             elif avg_qual >= 80:
                 summary["findings"].append({
                     "type": "positive",
                     "category": "sleep",
-                    "title": "😊 수면 질 양호",
-                    "detail": f"평균 수면 질 {avg_qual:.0f}/100으로 양호합니다.",
+                    "title": "😊 Good Sleep Quality",
+                    "detail": f"Average sleep quality {avg_qual:.0f}/100 — good.",
                 })
 
         # ── Activity Analysis ──
@@ -415,23 +415,23 @@ def _analyze_graph_insights(G, days: int) -> dict:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "activity",
-                    "title": "🏃 운동 빈도 부족",
-                    "detail": f"{days}일 중 {days_with_activity}회 운동 — 더 자주 움직여야 합니다.",
-                    "recommendation": "매일 최소 30분 가벼운 활동을 추천합니다.",
+                    "title": "🏃 Low Exercise Frequency",
+                    "detail": f"{days_with_activity} workouts in {days} days — more frequent activity needed.",
+                    "recommendation": "Aim for at least 30 minutes of light activity every day.",
                 })
             else:
                 summary["findings"].append({
                     "type": "positive",
                     "category": "activity",
-                    "title": "💪 활발한 운동 습관",
-                    "detail": f"{days_with_activity}회 운동, 총 {total_min}분, {total_cal}kcal 소모",
+                    "title": "💪 Active Exercise Habits",
+                    "detail": f"{days_with_activity} workouts, {total_min} total minutes, {total_cal}kcal burned",
                 })
 
             if unique_activities:
                 summary["findings"].append({
                     "type": "info",
                     "category": "activity",
-                    "title": "🎯 주요 활동 종목",
+                    "title": "🎯 Main Activity Types",
                     "detail": ", ".join(unique_activities),
                 })
 
@@ -442,30 +442,30 @@ def _analyze_graph_insights(G, days: int) -> dict:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "wellness",
-                    "title": "⚡ 낮은 에너지 수준",
-                    "detail": f"평균 에너지 {avg_v:.0f}/100 — 식이/수면 개선이 필요합니다.",
+                    "title": "⚡ Low Energy Level",
+                    "detail": f"Average energy {avg_v:.0f}/100 — diet/sleep improvement needed.",
                 })
             elif mtype == "energy_level" and avg_v >= 70:
                 summary["findings"].append({
                     "type": "positive",
                     "category": "wellness",
-                    "title": "⚡ 에너지 수준 양호",
-                    "detail": f"평균 에너지 {avg_v:.0f}/100",
+                    "title": "⚡ Good Energy Level",
+                    "detail": f"Average energy {avg_v:.0f}/100",
                 })
             if mtype == "mood" and avg_v < 50:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "wellness",
-                    "title": "😔 기분 저하 경향",
-                    "detail": f"평균 기분 점수 {avg_v:.0f}/100 — 주의가 필요합니다.",
-                    "recommendation": "신체 활동 증가와 충분한 수면이 기분 개선에 도움됩니다.",
+                    "title": "😔 Low Mood Tendency",
+                    "detail": f"Average mood score {avg_v:.0f}/100 — attention needed.",
+                    "recommendation": "Increased physical activity and adequate sleep can help improve mood.",
                 })
             elif mtype == "mood" and avg_v >= 70:
                 summary["findings"].append({
                     "type": "positive",
                     "category": "wellness",
-                    "title": "😊 기분 상태 양호",
-                    "detail": f"평균 기분 점수 {avg_v:.0f}/100",
+                    "title": "😊 Good Mood Status",
+                    "detail": f"Average mood score {avg_v:.0f}/100",
                 })
 
             summary.setdefault("metrics", {})[mtype] = round(avg_v, 1)
@@ -487,16 +487,16 @@ def _analyze_graph_insights(G, days: int) -> dict:
         result_insights.append({
             "type": "warning",
             "category": "nutrition",
-            "title": "🥗 식단 다양성 부족",
-            "detail": f"전체 {len(food_freq)}종의 식품만 섭취 — 다양한 영양소 섭취가 필요합니다.",
-            "recommendation": "매주 새로운 과일, 채소, 단백질원을 추가해보세요.",
+            "title": "🥗 Low Diet Diversity",
+            "detail": f"Only {len(food_freq)} types of food consumed — more varied nutrition needed.",
+            "recommendation": "Try adding new fruits, vegetables, and protein sources each week.",
         })
     elif len(food_freq) >= 15:
         result_insights.append({
             "type": "positive",
             "category": "nutrition",
-            "title": "🥗 식단 다양성 우수",
-            "detail": f"전체 {len(food_freq)}종의 다양한 식품을 섭취하고 있습니다.",
+            "title": "🥗 Excellent Diet Diversity",
+            "detail": f"Consuming a diverse range of {len(food_freq)} types of food.",
         })
 
     # Category balance check
@@ -506,9 +506,9 @@ def _analyze_graph_insights(G, days: int) -> dict:
         result_insights.append({
             "type": "warning",
             "category": "nutrition",
-            "title": "🥬 채소 섭취 부족",
-            "detail": "기간 내 채소 섭취 기록이 없습니다.",
-            "recommendation": "매 끼니에 채소를 추가하세요.",
+            "title": "🥬 Insufficient Vegetable Intake",
+            "detail": "No vegetable intake recorded during this period.",
+            "recommendation": "Add vegetables to every meal.",
         })
 
     # ── Graph Structure Insights ──
@@ -547,8 +547,8 @@ def _analyze_graph_insights(G, days: int) -> dict:
         result_insights.append({
             "type": "info",
             "category": "structure",
-            "title": "🔗 분리된 그래프 컴포넌트 발견",
-            "detail": "그래프에 연결되지 않은 독립 컴포넌트가 존재합니다. 일부 건강 데이터 간 기록 누락 가능성이 있습니다.",
+            "title": "🔗 Disconnected Graph Components Found",
+            "detail": "The graph contains independent disconnected components. Some health data records may be missing.",
         })
 
     return {
@@ -1924,14 +1924,14 @@ def llm_chat(
             # Provide retrieval-only response
             if context:
                 return {
-                    "response": f"🔍 관련 건강 데이터:\n\n{context}\n\n💡 AI 분석을 원하시면 OPENAI_API_KEY를 설정해주세요.",
+                    "response": f"🔍 Related health data:\n\n{context}\n\n💡 Set OPENAI_API_KEY to enable AI analysis.",
                     "model": "none",
                     "session_id": session_id,
                     "llm_configured": False,
                     "timestamp": datetime.utcnow().isoformat(),
                 }
             return {
-                "response": "LLM이 구성되지 않았습니다. POST /llm/configure로 API 키를 설정하거나 OPENAI_API_KEY 환경변수를 설정해주세요.",
+                "response": "LLM is not configured. Set the API key via POST /llm/configure or set the OPENAI_API_KEY environment variable.",
                 "model": "none",
                 "llm_configured": False,
                 "session_id": session_id,

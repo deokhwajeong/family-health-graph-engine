@@ -563,16 +563,16 @@ class RAGEngine:
         """
         if not search_results:
             return (
-                "관련 정보를 찾을 수 없습니다. 그래프 데이터를 먼저 인덱싱해주세요. "
-                "(POST /rag/index 호출)"
+                "No relevant information found. Please index the graph data first. "
+                "(Call POST /rag/index)"
             )
 
-        answer = "🔍 **검색 결과 기반 답변** (LLM API 키가 설정되지 않아 검색 결과만 제공합니다)\n\n"
+        answer = "🔍 **Search-based answer** (LLM API key not configured — showing search results only)\n\n"
         for i, doc in enumerate(search_results[:3], 1):
             relevance = 1.0 - doc.get("distance", 0)
-            answer += f"**[{i}]** (관련도: {relevance:.0%})\n{doc['text']}\n\n"
+            answer += f"**[{i}]** (relevance: {relevance:.0%})\n{doc['text']}\n\n"
 
-        answer += "\n💡 더 상세한 AI 분석을 원하시면 OPENAI_API_KEY 환경변수를 설정해주세요."
+        answer += "\n💡 Set the OPENAI_API_KEY environment variable for more detailed AI analysis."
         return answer
 
     def get_health_context(

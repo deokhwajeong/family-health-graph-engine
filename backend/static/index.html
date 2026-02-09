@@ -474,7 +474,7 @@
     <!-- Graph Insights Panel -->
     <div id="graph-insights-panel" style="margin-top:24px;">
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-        <h3 style="margin:0;">📊 그래프 분석 인사이트</h3>
+        <h3 style="margin:0;">📊 Graph Analysis Insights</h3>
         <span style="font-size:11px; color:var(--text2);" id="insights-meta"></span>
       </div>
 
@@ -773,18 +773,18 @@
         <h3>💬 Chat</h3>
         <div id="chat-messages" style="flex:1; overflow-y:auto; padding:12px; background:var(--surface2); border-radius:12px; margin:12px 0; display:flex; flex-direction:column; gap:12px; min-height:300px;">
           <div class="chat-msg chat-system" style="text-align:center; color:var(--text2); font-size:13px; padding:20px;">
-            🤖 건강 AI 어시스턴트입니다. 건강 데이터에 대해 질문해주세요!<br>
-            <small>예: "최근 수면 패턴을 분석해줘", "식단 개선 추천해줘"</small>
+            🤖 Health AI Assistant. Ask questions about your health data!<br>
+            <small>e.g. "Analyze recent sleep patterns", "Recommend diet improvements"</small>
           </div>
         </div>
         <form onsubmit="sendChatMessage(event)" style="display:flex; gap:8px;">
-          <input type="text" id="chat-input" placeholder="건강에 관해 질문하세요..." 
+          <input type="text" id="chat-input" placeholder="Ask about your health..." 
             style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:14px; outline:none;"
             autocomplete="off">
           <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text2); cursor:pointer;">
             <input type="checkbox" id="chat-use-rag" checked style="accent-color:var(--accent);"> RAG
           </label>
-          <button type="submit" class="btn btn-primary" id="chat-send-btn">전송</button>
+          <button type="submit" class="btn btn-primary" id="chat-send-btn">Send</button>
         </form>
       </div>
 
@@ -793,8 +793,8 @@
         <h3>📚 Retrieved Context</h3>
         <div id="rag-context-panel" style="flex:1; overflow-y:auto; padding:12px; background:var(--surface2); border-radius:12px; margin:12px 0; min-height:300px;">
           <div style="text-align:center; padding:40px; color:var(--text2); font-size:13px;">
-            RAG 검색 결과가 여기에 표시됩니다.<br>
-            채팅 시 관련 건강 데이터가 자동으로 검색됩니다.
+            RAG search results will be displayed here.<br>
+            Related health data will be automatically retrieved during chat.
           </div>
         </div>
         <div style="display:flex; gap:8px;">
@@ -816,7 +816,7 @@
     </div>
     <div class="detail-section">
       <form onsubmit="ragSearch(event)" style="display:flex; gap:12px; margin-bottom:16px;">
-        <input type="text" id="rag-search-input" placeholder="예: 수면 패턴, 영양 섭취, 운동 기록..." 
+        <input type="text" id="rag-search-input" placeholder="e.g. sleep patterns, nutrition intake, exercise records..." 
           style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:14px; outline:none;">
         <select id="rag-search-count" style="padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;">
           <option value="5">5 results</option>
@@ -827,7 +827,7 @@
       </form>
       <div id="rag-search-results" style="min-height:200px;">
         <div style="text-align:center; padding:40px; color:var(--text2);">
-          건강 지식 기반을 검색하세요. 그래프 데이터와 건강 지식이 포함됩니다.
+          Search the health knowledge base. Includes graph data and health knowledge.
         </div>
       </div>
     </div>
@@ -1310,7 +1310,7 @@ function toggleGraphFullscreen() {
 function renderGraphInsights(insights) {
   // Meta
   const meta = document.getElementById('insights-meta');
-  if (meta) meta.textContent = `${insights.period_days}일간 분석 · ${insights.generated_at?.slice(0,10) || ''}`;
+  if (meta) meta.textContent = `${insights.period_days}-day analysis · ${insights.generated_at?.slice(0,10) || ''}`;
 
   // ── Global insights ──
   const globalDiv = document.getElementById('global-insights');
@@ -1332,9 +1332,9 @@ function renderGraphInsights(insights) {
     });
 
     let html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-      <div style="padding:8px 16px;background:rgba(0,184,148,0.1);border:1px solid rgba(0,184,148,0.3);border-radius:10px;font-size:13px;color:var(--green);">✅ 양호 <strong>${posCount}</strong></div>
-      <div style="padding:8px 16px;background:rgba(225,112,85,0.1);border:1px solid rgba(225,112,85,0.3);border-radius:10px;font-size:13px;color:var(--red);">⚠️ 주의 <strong>${warnCount}</strong></div>
-      <div style="padding:8px 16px;background:rgba(116,185,255,0.1);border:1px solid rgba(116,185,255,0.3);border-radius:10px;font-size:13px;color:var(--blue);">ℹ️ 정보 <strong>${infoCount}</strong></div>
+      <div style="padding:8px 16px;background:rgba(0,184,148,0.1);border:1px solid rgba(0,184,148,0.3);border-radius:10px;font-size:13px;color:var(--green);">✅ Good <strong>${posCount}</strong></div>
+      <div style="padding:8px 16px;background:rgba(225,112,85,0.1);border:1px solid rgba(225,112,85,0.3);border-radius:10px;font-size:13px;color:var(--red);">⚠️ Warning <strong>${warnCount}</strong></div>
+      <div style="padding:8px 16px;background:rgba(116,185,255,0.1);border:1px solid rgba(116,185,255,0.3);border-radius:10px;font-size:13px;color:var(--blue);">ℹ️ Info <strong>${infoCount}</strong></div>
     </div>`;
 
     if (allFindings.length > 0) {
@@ -1349,14 +1349,14 @@ function renderGraphInsights(insights) {
     personGrid.innerHTML = insights.person_summaries.map(p => {
       const sleepHtml = p.sleep ? `
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0;">
-          <span style="font-size:12px;">😴 수면 <strong>${p.sleep.avg_duration}h</strong></span>
-          <span style="font-size:12px;">⭐ 질 <strong>${p.sleep.avg_quality}/100</strong></span>
-          <span style="font-size:12px;">📊 편차 <strong>±${p.sleep.consistency}h</strong></span>
+          <span style="font-size:12px;">😴 Sleep <strong>${p.sleep.avg_duration}h</strong></span>
+          <span style="font-size:12px;">⭐ Quality <strong>${p.sleep.avg_quality}/100</strong></span>
+          <span style="font-size:12px;">📊 Deviation <strong>±${p.sleep.consistency}h</strong></span>
         </div>` : '';
       const actHtml = p.activity ? `
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0;">
-          <span style="font-size:12px;">🏃 ${p.activity.total_sessions}회</span>
-          <span style="font-size:12px;">⏱ ${p.activity.total_minutes}분</span>
+          <span style="font-size:12px;">🏃 ${p.activity.total_sessions} sessions</span>
+          <span style="font-size:12px;">⏱ ${p.activity.total_minutes} min</span>
           <span style="font-size:12px;">🔥 ${p.activity.total_calories}kcal</span>
         </div>` : '';
       const metricHtml = p.metrics ? `
@@ -1381,7 +1381,7 @@ function renderGraphInsights(insights) {
           </div>
           ${sleepHtml}${actHtml}${metricHtml}
           <div style="margin-top:12px;">
-            ${findingsHtml || '<div style="font-size:12px;color:var(--text2);text-align:center;padding:8px;">특이 소견 없음</div>'}
+            ${findingsHtml || '<div style="font-size:12px;color:var(--text2);text-align:center;padding:8px;">No notable findings</div>'}
           </div>
         </div>
       `;
@@ -1395,7 +1395,7 @@ function renderGraphInsights(insights) {
     const topFoodsHtml = (n.top_foods || []).map((f, i) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < n.top_foods.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
         <span style="font-size:13px;">${i < 3 ? ['🥇','🥈','🥉'][i] : `#${i+1}`} ${f.name}</span>
-        <span style="font-size:12px;color:var(--text2);">${f.count}회</span>
+        <span style="font-size:12px;color:var(--text2);">${f.count} times</span>
       </div>
     `).join('');
 
@@ -1405,10 +1405,10 @@ function renderGraphInsights(insights) {
     }).join('');
 
     nutritionDiv.innerHTML = `
-      <h3>🥗 식단 분석</h3>
-      <div style="margin:12px 0;font-size:13px;color:var(--text2);">총 <strong style="color:var(--text);">${n.unique_foods}</strong>종 식품 섭취</div>
+      <h3>🥗 Diet Analysis</h3>
+      <div style="margin:12px 0;font-size:13px;color:var(--text2);">Total <strong style="color:var(--text);">${n.unique_foods}</strong> types of food consumed</div>
       <div style="margin-bottom:12px;">${catHtml}</div>
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">자주 먹는 식품 TOP ${n.top_foods?.length || 0}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Top ${n.top_foods?.length || 0} Frequently Eaten Foods</div>
       ${topFoodsHtml}
     `;
   }
@@ -1436,13 +1436,13 @@ function renderGraphInsights(insights) {
       : `Components: ${s.connected_components}`;
 
     structDiv.innerHTML = `
-      <h3>🔗 그래프 구조 분석</h3>
+      <h3>🔗 Graph Structure Analysis</h3>
       <div style="display:flex;gap:16px;margin:12px 0;flex-wrap:wrap;">
-        <span style="font-size:12px;">📊 노드 <strong>${s.total_nodes}</strong></span>
-        <span style="font-size:12px;">🔗 엣지 <strong>${s.total_edges}</strong></span>
+        <span style="font-size:12px;">📊 Nodes <strong>${s.total_nodes}</strong></span>
+        <span style="font-size:12px;">🔗 Edges <strong>${s.total_edges}</strong></span>
         <span style="font-size:12px;">🔄 ${compInfo}</span>
       </div>
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Hub 노드 (연결 수 상위)</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Hub Nodes (Top by Connections)</div>
       ${hubHtml}
     `;
   }
@@ -3324,12 +3324,12 @@ function clearChat() {
   chatSessionId = 'session_' + Date.now();
   document.getElementById('chat-messages').innerHTML = `
     <div style="text-align:center; color:var(--text2); font-size:13px; padding:20px;">
-      🤖 건강 AI 어시스턴트입니다. 건강 데이터에 대해 질문해주세요!<br>
-      <small>예: "최근 수면 패턴을 분석해줘", "식단 개선 추천해줘"</small>
+      🤖 Health AI Assistant. Ask questions about your health data!<br>
+      <small>e.g. "Analyze recent sleep patterns", "Recommend diet improvements"</small>
     </div>`;
   document.getElementById('rag-context-panel').innerHTML = `
     <div style="text-align:center; padding:40px; color:var(--text2); font-size:13px;">
-      RAG 검색 결과가 여기에 표시됩니다.
+      RAG search results will be displayed here.
     </div>`;
 }
 

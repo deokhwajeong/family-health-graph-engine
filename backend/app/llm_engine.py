@@ -213,7 +213,7 @@ class LLMEngine:
         except Exception as e:
             ml_logger.error("LLM chat failed", exc=e)
             return {
-                "response": f"LLM 요청 실패: {str(e)}. API 키 설정을 확인해주세요.",
+                "response": f"LLM request failed: {str(e)}. Please check your API key configuration.",
                 "model": self.model,
                 "error": str(e),
                 "session_id": session_id,
