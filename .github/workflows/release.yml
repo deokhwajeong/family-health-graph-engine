@@ -20,6 +20,7 @@ jobs:
       with:
         python-version: '3.12'
         cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
     
     - name: Install dependencies
       run: |
@@ -28,15 +29,15 @@ jobs:
     
     - name: Run tests
       run: |
-        python -m py_compile backend/main.py
-        python -m py_compile backend/app/*.py
-        echo "✓ All modules compiled successfully"
+        pip install -r requirements-dev.txt
+        ruff check backend tests
+        pytest -q
     
     - name: Generate graph stats
       run: |
         python -c "
-        from backend.app.synthetic_data import build_single_child_household
-        G = build_single_child_household(num_days=60)
+        from backend.app.synthetic_data import build_demo_family_household
+        G = build_demo_family_household(num_days=90)
         print(f'Graph Statistics:')
         print(f'  Nodes: {len(G.nodes())}')
         print(f'  Edges: {len(G.edges())}')
@@ -54,53 +55,14 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          RELEASE_STATS.txt
-          ML_IMPLEMENTATION.md
-          IMPLEMENTATION_COMPLETE.md
+        files: RELEASE_STATS.txt
         body: |
-          ## Family Health Graph Engine Release ${{ github.ref_name }}
-          
-          ### 🎉 Features
-          
-          - **Graph Embedding**: GraphSAGE-based daily health pattern representation
-          - **Anomaly Detection**: Isolation Forest + LOF for health pattern anomalies
-          - **Metric Prediction**: Linear regression for next-day health metrics
-          - **Link Prediction**: Discover hidden food-health relationships
-          - **Node Classification**: Food nutrition, activity intensity, daily status
-          
-          ### 📊 Synthetic Data
-          
-          - 60 days of household health data
-          - 546 nodes, 1078 edges
-          - Multiple food types, activities, sleep sessions, and metrics
-          
-          ### 🚀 Quick Start
-          
-          ```bash
-          # Install dependencies
-          pip install -r backend/requirements.txt
-          
-          # Train all ML models
-          python backend/train_models.py
-          
-          # Start API server
-          cd backend
-          uvicorn main:app --reload
-          ```
-          
-          ### 📚 Documentation
-          
-          - See `ML_IMPLEMENTATION.md` for detailed implementation guide
-          - See `IMPLEMENTATION_COMPLETE.md` for completion summary
-          
-          ### 🔗 API Endpoints
-          
-          - GraphSAGE: `/ml/embeddings/daily/{person_id}/{date}`
-          - Anomaly Detection: `/ml/anomalies/detect/{person_id}/{date}`
-          - Metric Prediction: `/ml/prediction/metrics/{person_id}/{date}`
-          - Daily Insights: `/ml/insights/daily/{person_id}/{date}`
-          - Person Summary: `/ml/summary/{person_id}`
+          ## Family Health Graph Engine ${{ github.ref_name }}
+
+          FastAPI service that models a household's daily health data as a
+          knowledge graph and runs graph ML on it. Demo data is fully synthetic.
+
+          See README.md for the quickstart and docs/ml-models.md for model details.
         generate_release_notes: true
         draft: false
         prerelease: false
