@@ -13,7 +13,10 @@ Author: deokhwajeong
 Version: 0.2.0
 """
 
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Query, Body
+import io
+import json
+
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Query
 from fastapi.responses import RedirectResponse, Response, HTMLResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,9 +25,13 @@ import joblib
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+from functools import lru_cache
 
 from .app.graph_builder import build_example_graph, GraphBuilder
-from .app.synthetic_data import build_single_child_household
+from .app.synthetic_data import build_demo_family_household, DEMO_END_DATE
+from .app.health_recommendations import FAMILY_PROFILES, generate_recommendations, compare_current_vs_ideal
+from .app.apple_health_parser import parse_apple_health_export, QUANTITY_METRICS, WORKOUT_TYPES
+from .app.food_ocr import NUTRITION_DB
 from .app.graph_viz import graph_to_svg
 from .app.graph_embeddings import SimpleGraphSAGE, extract_day_features
 from .app.anomaly_detection import HealthAnomalyDetector, PatternCorrelationAnalyzer
@@ -33,16 +40,14 @@ from .app.link_prediction import HealthLinkPredictor
 from .app.node_classifier import FoodNutritionClassifier, ActivityIntensityClassifier, HealthStatusClassifier
 from .app.apple_health import AppleHealthParser, add_health_data_to_graph
 from .app.ethics import (
-    EthicsEngine, DataPurpose, ConsentStatus,
-    PrivacyGuard, ConsentManager, MinorProtectionGuard,
-    FairnessAuditor, TransparencyReporter, DataGovernance,
+    EthicsEngine, DataPurpose,
 )
 from .app.schemas import (
     ConsentRequest, DeletionRequest, FairnessAuditRequest,
 )
 from .app.logger import api_logger, ml_logger
-from .app.llm_engine import get_llm_engine, configure_llm_engine, LLMEngine
-from .app.rag_engine import get_rag_engine, RAGEngine, GraphDocumentConverter
+from .app.llm_engine import get_llm_engine, configure_llm_engine
+from .app.rag_engine import get_rag_engine, GraphDocumentConverter
 from .app.food_ocr import analyze_food_image as ocr_analyze_food_image, analyze_food_text, add_meal_to_graph
 
 
@@ -75,6 +80,49 @@ BACKEND_STATIC_DIR = Path(__file__).parent / "static"
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
     api_logger.info("Frontend static files mounted", frontend_dir=str(FRONTEND_DIR))
+
+# ---------------------------------------------------------
+# Demo graph + model helpers
+# ---------------------------------------------------------
+
+@lru_cache(maxsize=16)
+def _cached_demo_graph(days: int):
+    return build_demo_family_household(num_days=days)
+
+
+def build_demo_graph(days: int = 90):
+    """Return a fresh copy of the synthetic Demo family graph for `days` days."""
+    if days < 1 or days > 365:
+        raise HTTPException(status_code=400, detail="days must be between 1 and 365")
+    return _cached_demo_graph(days).copy()
+
+
+_fitted_models: dict = {}
+
+
+def _model_file(kind: str, person_id: str) -> str:
+    """Per-person model filename, e.g. anomaly_detector_leo.pkl."""
+    key = "".join(ch for ch in person_id.split(":")[-1].lower() if ch.isalnum() or ch in "-_")
+    return f"{kind}_{key}.pkl"
+
+
+def load_or_fit(filename: str, fit_fn, cache_key=None):
+    """
+    Use a model saved by a /train endpoint (or backend/train_models.py) if it
+    exists and loads cleanly; otherwise fit one on demand and keep it in memory.
+    The repo ships without .pkl files, so the on-demand path is the default.
+    """
+    path = MODEL_DIR / filename
+    if path.exists():
+        try:
+            return joblib.load(path)
+        except Exception as e:  # stale or incompatible pickle
+            ml_logger.warning("Could not load saved model, refitting", model=filename, error=str(e))
+    key = (filename, cache_key)
+    if key not in _fitted_models:
+        _fitted_models[key] = fit_fn()
+    return _fitted_models[key]
+
 
 # Ethics engine (singleton)
 ethics_engine = EthicsEngine(retention_days=365)
@@ -146,7 +194,7 @@ NODE_SIZES = {
 def get_graph_d3(days: int = 14, max_nodes: int = 500):
     """Return graph data formatted for D3.js force-directed visualization."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
 
         # Downsample if too many nodes
         all_nodes = list(G.nodes())
@@ -214,6 +262,8 @@ def get_graph_d3(days: int = 14, max_nodes: int = 500):
                 "node_types": node_types,
             },
         }
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Graph D3 export failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -223,7 +273,7 @@ def get_graph_d3(days: int = 14, max_nodes: int = 500):
 def get_graph_viz_stats(days: int = 14):
     """Get graph statistics for the visualization page."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
 
         node_types = {}
         persons = {}
@@ -249,6 +299,8 @@ def get_graph_viz_stats(days: int = 14):
             "persons": persons,
             "days": days,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Graph stats failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -263,9 +315,11 @@ def get_graph_insights(days: int = 14):
     activity correlations, and actionable recommendations.
     """
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         insights = _analyze_graph_insights(G, days)
         return insights
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Graph insights failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -360,7 +414,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "warning",
                     "category": "sleep",
                     "title": f"{sleep_emoji} Insufficient Sleep Detected",
-                    "detail": f"Average sleep {avg_dur:.1f}h — below the recommended 7-9 hours.",
+                    "detail": f"Average sleep {avg_dur:.1f}h - below the recommended 7-9 hours.",
                     "recommendation": "Consider moving your bedtime 30 minutes earlier.",
                 })
             elif avg_dur >= 8.5:
@@ -368,14 +422,14 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "positive",
                     "category": "sleep",
                     "title": f"{sleep_emoji} Excellent Sleep Pattern",
-                    "detail": f"Averaging {avg_dur:.1f}h of sleep — getting sufficient rest.",
+                    "detail": f"Averaging {avg_dur:.1f}h of sleep - getting sufficient rest.",
                 })
             if std_dur > 1.5:
                 summary["findings"].append({
                     "type": "warning",
                     "category": "sleep",
                     "title": "⏰ Irregular Sleep Schedule",
-                    "detail": f"Sleep deviation {std_dur:.1f}h — a consistent bedtime pattern is needed.",
+                    "detail": f"Sleep deviation {std_dur:.1f}h - a consistent bedtime pattern is needed.",
                     "recommendation": "Try going to bed and waking up at the same time every day.",
                 })
             if avg_qual < 60:
@@ -383,7 +437,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "warning",
                     "category": "sleep",
                     "title": "😴 Low Sleep Quality",
-                    "detail": f"Average sleep quality {avg_qual:.0f}/100 — improvement needed.",
+                    "detail": f"Average sleep quality {avg_qual:.0f}/100 - improvement needed.",
                     "recommendation": "Reduce screen time before bed and create a quiet environment.",
                 })
             elif avg_qual >= 80:
@@ -391,7 +445,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "positive",
                     "category": "sleep",
                     "title": "😊 Good Sleep Quality",
-                    "detail": f"Average sleep quality {avg_qual:.0f}/100 — good.",
+                    "detail": f"Average sleep quality {avg_qual:.0f}/100 - good.",
                 })
 
         # ── Activity Analysis ──
@@ -416,7 +470,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "warning",
                     "category": "activity",
                     "title": "🏃 Low Exercise Frequency",
-                    "detail": f"{days_with_activity} workouts in {days} days — more frequent activity needed.",
+                    "detail": f"{days_with_activity} workouts in {days} days - more frequent activity needed.",
                     "recommendation": "Aim for at least 30 minutes of light activity every day.",
                 })
             else:
@@ -443,7 +497,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "warning",
                     "category": "wellness",
                     "title": "⚡ Low Energy Level",
-                    "detail": f"Average energy {avg_v:.0f}/100 — diet/sleep improvement needed.",
+                    "detail": f"Average energy {avg_v:.0f}/100 - diet/sleep improvement needed.",
                 })
             elif mtype == "energy_level" and avg_v >= 70:
                 summary["findings"].append({
@@ -457,7 +511,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
                     "type": "warning",
                     "category": "wellness",
                     "title": "😔 Low Mood Tendency",
-                    "detail": f"Average mood score {avg_v:.0f}/100 — attention needed.",
+                    "detail": f"Average mood score {avg_v:.0f}/100 - attention needed.",
                     "recommendation": "Increased physical activity and adequate sleep can help improve mood.",
                 })
             elif mtype == "mood" and avg_v >= 70:
@@ -488,7 +542,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
             "type": "warning",
             "category": "nutrition",
             "title": "🥗 Low Diet Diversity",
-            "detail": f"Only {len(food_freq)} types of food consumed — more varied nutrition needed.",
+            "detail": f"Only {len(food_freq)} types of food consumed - more varied nutrition needed.",
             "recommendation": "Try adding new fruits, vegetables, and protein sources each week.",
         })
     elif len(food_freq) >= 15:
@@ -500,7 +554,6 @@ def _analyze_graph_insights(G, days: int) -> dict:
         })
 
     # Category balance check
-    protein_count = food_categories.get("protein", 0)
     vegetable_count = food_categories.get("vegetable", 0)
     if vegetable_count == 0:
         result_insights.append({
@@ -565,7 +618,7 @@ def _analyze_graph_insights(G, days: int) -> dict:
 def get_graph_stats(days: int = 60):
     """Get comprehensive graph statistics."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         
         node_types = {}
         for node in G.nodes():
@@ -585,6 +638,8 @@ def get_graph_stats(days: int = 60):
         
         api_logger.info("Graph stats requested", days=days, nodes=len(G.nodes()), edges=len(G.edges()))
         return stats
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Error getting graph stats", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -598,6 +653,8 @@ def debug_example_graph():
         result = json_graph.node_link_data(G)
         api_logger.info("Example graph served", nodes=len(G.nodes()), edges=len(G.edges()))
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Error generating example graph", exc=e)
         raise HTTPException(status_code=500, detail="Failed to generate example graph")
@@ -610,12 +667,14 @@ def debug_synthetic_graph(days: int = 60):
         if days < 1 or days > 365:
             raise ValueError("days must be between 1 and 365")
         
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         result = json_graph.node_link_data(G)
         api_logger.info("Synthetic graph served", days=days, nodes=len(G.nodes()), edges=len(G.edges()))
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Error generating synthetic graph", exc=e, days=days)
         raise HTTPException(status_code=500, detail="Failed to generate synthetic graph")
@@ -640,6 +699,8 @@ def debug_example_graph_svg():
                 "X-Content-Type-Options": "nosniff",
             },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Error generating SVG", exc=e)
         raise HTTPException(status_code=500, detail="Failed to generate SVG")
@@ -652,7 +713,7 @@ def debug_synthetic_graph_svg(days: int = 60):
         if days < 1 or days > 365:
             raise ValueError("days must be between 1 and 365")
         
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         svg_bytes = graph_to_svg(G)
 
         return Response(
@@ -665,6 +726,8 @@ def debug_synthetic_graph_svg(days: int = 60):
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Error generating SVG", exc=e, days=days)
         raise HTTPException(status_code=500, detail="Failed to generate SVG")
@@ -681,7 +744,7 @@ def debug_synthetic_graph_html(days: int = 60):
         if days < 1 or days > 365:
             raise ValueError("days must be between 1 and 365")
         
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         svg_bytes = graph_to_svg(G)
         svg = svg_bytes.decode("utf-8")
 
@@ -709,6 +772,8 @@ def debug_synthetic_graph_html(days: int = 60):
         return Response(content=html, media_type="text/html")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Error generating HTML", exc=e, days=days)
         raise HTTPException(status_code=500, detail="Failed to generate HTML")
@@ -726,7 +791,7 @@ def train_embeddings(days: int = 60):
             raise ValueError("days must be between 1 and 365")
         
         ml_logger.info("Training GraphSAGE embeddings", days=days)
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         
         sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
         embeddings = sage.fit_embeddings(G)
@@ -745,6 +810,8 @@ def train_embeddings(days: int = 60):
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         ml_logger.error("Error training embeddings", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -757,16 +824,13 @@ def get_daily_embedding(person_id: str, date: str, days: int = 60):
         if not person_id or not date:
             raise ValueError("person_id and date are required")
         
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         
-        # Load or train model
-        model_path = MODEL_DIR / "graph_sage.pkl"
-        if model_path.exists():
-            sage = joblib.load(model_path)
-        else:
-            sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
-            sage.fit_embeddings(G)
-        
+        # Embeddings are transductive (one vector per node), so always fit on
+        # the graph being queried instead of reusing a model from another window.
+        sage = SimpleGraphSAGE(embedding_dim=16, num_aggregation_layers=2)
+        sage.fit_embeddings(G)
+
         embedding = sage.get_daily_embedding(G, person_id, date)
         
         if embedding is None:
@@ -779,6 +843,8 @@ def get_daily_embedding(person_id: str, date: str, days: int = 60):
             "embedding": embedding.tolist(),
             "embedding_dim": len(embedding)
         }
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -790,16 +856,28 @@ def get_daily_embedding(person_id: str, date: str, days: int = 60):
 # ML Endpoints: Anomaly Detection
 # ---------------------------------------------------------
 
+def _fit_anomaly(G, person_id: str):
+    detector = HealthAnomalyDetector(contamination=0.1)
+    detector.fit(G, person_id)
+    return detector
+
+
+def _fit_predictor(G, person_id: str):
+    predictor = HealthMetricPredictor(prediction_window=1)
+    predictor.fit(G, person_id)
+    return predictor
+
+
 @app.post("/ml/anomalies/train")
-def train_anomaly_detector(days: int = 60):
+def train_anomaly_detector(days: int = 60, person_id: str = "person:leo"):
     """Train anomaly detection models."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     detector = HealthAnomalyDetector(contamination=0.1)
-    detector.fit(G, "person:mia")
+    detector.fit(G, person_id)
     
     # Save model
-    joblib.dump(detector, MODEL_DIR / "anomaly_detector.pkl")
+    joblib.dump(detector, MODEL_DIR / _model_file("anomaly_detector", person_id))
     
     return {
         "status": "success",
@@ -812,16 +890,12 @@ def train_anomaly_detector(days: int = 60):
 @app.get("/ml/anomalies/detect/{person_id}/{date}")
 def detect_anomaly(person_id: str, date: str, days: int = 60):
     """Detect if a specific day is anomalous."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
-    # Load or train model
-    model_path = MODEL_DIR / "anomaly_detector.pkl"
-    if model_path.exists():
-        detector = joblib.load(model_path)
-    else:
-        detector = HealthAnomalyDetector(contamination=0.1)
-        detector.fit(G, person_id)
-    
+    try:
+        detector = load_or_fit(_model_file("anomaly_detector", person_id), lambda: _fit_anomaly(G, person_id), (person_id, days))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     result = detector.predict(G, person_id, date)
     return result
 
@@ -829,7 +903,7 @@ def detect_anomaly(person_id: str, date: str, days: int = 60):
 @app.get("/ml/anomalies/correlations/{person_id}")
 def analyze_correlations(person_id: str, days: int = 60):
     """Analyze correlations between health behaviors and outcomes."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     analyzer = PatternCorrelationAnalyzer(lag_days=1)
     correlations = analyzer.analyze(G, person_id)
@@ -848,15 +922,15 @@ def analyze_correlations(person_id: str, days: int = 60):
 # ---------------------------------------------------------
 
 @app.post("/ml/prediction/train")
-def train_predictor(days: int = 60):
+def train_predictor(days: int = 60, person_id: str = "person:leo"):
     """Train health metric predictors."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     predictor = HealthMetricPredictor(prediction_window=1)
-    predictor.fit(G, "person:mia")
+    predictor.fit(G, person_id)
     
     # Save model
-    joblib.dump(predictor, MODEL_DIR / "metric_predictor.pkl")
+    joblib.dump(predictor, MODEL_DIR / _model_file("metric_predictor", person_id))
     
     return {
         "status": "success",
@@ -868,16 +942,12 @@ def train_predictor(days: int = 60):
 @app.get("/ml/prediction/metrics/{person_id}/{date}")
 def predict_metrics(person_id: str, date: str, days: int = 60):
     """Predict future health metrics."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
-    # Load or train model
-    model_path = MODEL_DIR / "metric_predictor.pkl"
-    if model_path.exists():
-        predictor = joblib.load(model_path)
-    else:
-        predictor = HealthMetricPredictor(prediction_window=1)
-        predictor.fit(G, person_id)
-    
+    try:
+        predictor = load_or_fit(_model_file("metric_predictor", person_id), lambda: _fit_predictor(G, person_id), (person_id, days))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     result = predictor.predict(G, person_id, date)
     return result
 
@@ -885,7 +955,7 @@ def predict_metrics(person_id: str, date: str, days: int = 60):
 @app.get("/ml/patterns/association-rules/{person_id}")
 def discover_rules(person_id: str, days: int = 60):
     """Discover association rules in health behaviors."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     analyzer = AssociationRuleAnalyzer(min_support=0.2)
     rules = analyzer.discover_rules(G, person_id, min_confidence=0.6)
@@ -904,7 +974,7 @@ def discover_rules(person_id: str, days: int = 60):
 @app.post("/ml/link-prediction/train")
 def train_link_predictor(days: int = 60):
     """Train link prediction model."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     predictor = HealthLinkPredictor()
     predictor.fit(G)
@@ -922,15 +992,14 @@ def train_link_predictor(days: int = 60):
 @app.get("/ml/link-prediction/suggest")
 def suggest_links(days: int = 60, top_k: int = 10):
     """Suggest new links to add to the graph."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
-    # Load or train model
-    model_path = MODEL_DIR / "link_predictor.pkl"
-    if model_path.exists():
-        predictor = joblib.load(model_path)
-    else:
-        predictor = HealthLinkPredictor()
-        predictor.fit(G)
+    def _fit():
+        p = HealthLinkPredictor()
+        p.fit(G)
+        return p
+
+    predictor = load_or_fit("link_predictor.pkl", _fit, days)
     
     predictions = predictor.predict_links(G, top_k=top_k)
     
@@ -947,7 +1016,7 @@ def suggest_links(days: int = 60, top_k: int = 10):
 @app.post("/ml/classification/train")
 def train_classifiers(days: int = 60):
     """Train node classifiers."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     food_clf = FoodNutritionClassifier()
     food_clf.fit(G)
@@ -969,15 +1038,14 @@ def train_classifiers(days: int = 60):
 @app.get("/ml/classification/food/{food_id}")
 def classify_food(food_id: str, days: int = 60):
     """Classify a food's nutritional profile."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
-    # Load or train model
-    model_path = MODEL_DIR / "food_classifier.pkl"
-    if model_path.exists():
-        clf = joblib.load(model_path)
-    else:
-        clf = FoodNutritionClassifier()
-        clf.fit(G)
+    def _fit():
+        c = FoodNutritionClassifier()
+        c.fit(G)
+        return c
+
+    clf = load_or_fit("food_classifier.pkl", _fit, days)
     
     result = clf.predict(G, food_id)
     return result
@@ -986,15 +1054,14 @@ def classify_food(food_id: str, days: int = 60):
 @app.get("/ml/classification/activity/{activity_id}")
 def classify_activity(activity_id: str, days: int = 60):
     """Classify an activity's intensity."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
-    # Load or train model
-    model_path = MODEL_DIR / "activity_classifier.pkl"
-    if model_path.exists():
-        clf = joblib.load(model_path)
-    else:
-        clf = ActivityIntensityClassifier()
-        clf.fit(G)
+    def _fit():
+        c = ActivityIntensityClassifier()
+        c.fit(G)
+        return c
+
+    clf = load_or_fit("activity_classifier.pkl", _fit, days)
     
     result = clf.predict(G, activity_id)
     return result
@@ -1003,7 +1070,7 @@ def classify_activity(activity_id: str, days: int = 60):
 @app.get("/ml/classification/daily-status/{person_id}/{date}")
 def classify_daily_status(person_id: str, date: str, days: int = 60):
     """Classify overall health status for a day."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     day_features = extract_day_features(G, person_id, date)
     
@@ -1024,7 +1091,7 @@ def classify_daily_status(person_id: str, date: str, days: int = 60):
 @app.get("/ml/insights/daily/{person_id}/{date}")
 def daily_health_insights(person_id: str, date: str, days: int = 60):
     """Get comprehensive daily health insights combining all ML models."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     # Daily features
     day_features = extract_day_features(G, person_id, date)
@@ -1032,20 +1099,14 @@ def daily_health_insights(person_id: str, date: str, days: int = 60):
     # Status
     status = HealthStatusClassifier.classify_day(day_features)
     
-    # Load anomaly detector
-    model_path = MODEL_DIR / "anomaly_detector.pkl"
-    if model_path.exists():
-        detector = joblib.load(model_path)
+    # Anomaly detector and next-day predictor (saved model if present, else fit on demand)
+    try:
+        detector = load_or_fit(_model_file("anomaly_detector", person_id), lambda: _fit_anomaly(G, person_id), (person_id, days))
         anomaly = detector.predict(G, person_id, date)
-    else:
-        anomaly = {"anomaly_score": 0.0, "is_anomaly": False, "reasons": []}
-    
-    # Load predictor
-    model_path = MODEL_DIR / "metric_predictor.pkl"
-    if model_path.exists():
-        predictor = joblib.load(model_path)
+        predictor = load_or_fit(_model_file("metric_predictor", person_id), lambda: _fit_predictor(G, person_id), (person_id, days))
         predictions = predictor.predict(G, person_id, date)
-    else:
+    except ValueError:  # unknown person or too few days to fit
+        anomaly = {"anomaly_score": 0.0, "is_anomaly": False, "reasons": []}
         predictions = {}
     
     return {
@@ -1066,7 +1127,7 @@ def daily_health_insights(person_id: str, date: str, days: int = 60):
 @app.get("/ml/summary/{person_id}")
 def person_summary(person_id: str, days: int = 60):
     """Get comprehensive summary for a person."""
-    G = build_single_child_household(num_days=days)
+    G = build_demo_graph(days)
     
     # Correlations
     analyzer = PatternCorrelationAnalyzer(lag_days=1)
@@ -1080,6 +1141,7 @@ def person_summary(person_id: str, days: int = 60):
     return {
         "person_id": person_id,
         "days_analyzed": days,
+        "lagged_correlations": correlations,
         "behavior_insights": insights[:5],  # top 5
         "health_rules": rules[:5],  # top 5
         "data_points": {
@@ -1099,10 +1161,12 @@ def person_summary(person_id: str, days: int = 60):
 def scan_pii(days: int = 60):
     """Scan the health graph for PII (Personally Identifiable Information)."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         report = ethics_engine.privacy.scan_graph(G)
         api_logger.info("PII scan completed", risk=report["risk_level"])
         return report
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("PII scan failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1112,7 +1176,7 @@ def scan_pii(days: int = 60):
 def anonymize_graph_data(days: int = 60):
     """Create an anonymized version of the health graph."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         anon_G = ethics_engine.privacy.anonymize_graph(G)
 
         return {
@@ -1121,8 +1185,10 @@ def anonymize_graph_data(days: int = 60):
             "anonymized_nodes": len(anon_G.nodes()),
             "original_edges": len(G.edges()),
             "anonymized_edges": len(anon_G.edges()),
-            "message": "Graph anonymized — person identifiers hashed, sensitive fields masked.",
+            "message": "Graph anonymized - person identifiers hashed, sensitive fields masked.",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Anonymization failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1145,6 +1211,8 @@ def grant_consent(request: ConsentRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Consent grant failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1163,21 +1231,23 @@ def withdraw_consent(request: ConsentRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Consent withdrawal failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/ethics/consent/{person_id}", tags=["Ethics - Consent"])
-def get_consent_status(person_id: str):
-    """Get consent summary for a person."""
-    return ethics_engine.consent.get_consent_summary(person_id)
 
 
 @app.get("/ethics/consent/audit-trail", tags=["Ethics - Consent"])
 def get_consent_audit_trail(person_id: str = None, limit: int = 50):
     """Get consent audit trail."""
     return ethics_engine.consent.get_audit_trail(person_id=person_id, limit=limit)
+
+
+@app.get("/ethics/consent/{person_id}", tags=["Ethics - Consent"])
+def get_consent_status(person_id: str):
+    """Get consent summary for a person."""
+    return ethics_engine.consent.get_consent_summary(person_id)
 
 
 # ---------------------------------------------------------
@@ -1188,12 +1258,14 @@ def get_consent_audit_trail(person_id: str = None, limit: int = 50):
 def detect_minors(days: int = 60):
     """Detect minor-aged members in the household graph."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         minors = ethics_engine.minor_protection.detect_minors(G)
         return {
             "minors_found": len(minors),
             "details": minors,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Minor detection failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1203,9 +1275,11 @@ def detect_minors(days: int = 60):
 def setup_guardians(days: int = 60):
     """Automatically set up guardian relationships from the graph."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         result = ethics_engine.minor_protection.setup_guardian_relationships(G)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Guardian setup failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1228,6 +1302,8 @@ def evaluate_minor_operation(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Minor evaluation failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1241,7 +1317,7 @@ def evaluate_minor_operation(
 def audit_anomaly_fairness(request: FairnessAuditRequest):
     """Audit anomaly detection scores for demographic bias."""
     try:
-        G = build_single_child_household(num_days=request.days)
+        G = build_demo_graph(request.days)
 
         # Train anomaly detector and collect scores per person
         from .app.anomaly_detection import HealthAnomalyDetector
@@ -1270,6 +1346,8 @@ def audit_anomaly_fairness(request: FairnessAuditRequest):
             G, all_scores, sensitive_attr=request.sensitive_attribute
         )
         return report
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Fairness audit failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1291,6 +1369,8 @@ def get_model_card(model_name: str):
     try:
         card = ethics_engine.transparency.generate_model_card(model_name)
         return card
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Model card generation failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1322,9 +1402,11 @@ def get_decision_log(
 def check_retention_policy(days: int = 60):
     """Check data retention policy compliance."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         report = ethics_engine.governance.check_retention_policy(G)
         return report
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Retention check failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1338,6 +1420,8 @@ def request_data_deletion(request: DeletionRequest):
             person_id=request.person_id, reason=request.reason
         )
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Deletion request failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1351,11 +1435,13 @@ def list_deletion_requests(status: str = None):
 
 @app.get("/ethics/governance/data-inventory", tags=["Ethics - Governance"])
 def get_data_inventory(days: int = 60):
-    """Generate a data inventory (GDPR Art. 30 — Records of Processing)."""
+    """Generate a data inventory (GDPR Art. 30 - Records of Processing)."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         inventory = ethics_engine.governance.generate_data_inventory(G)
         return inventory
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Data inventory failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1372,9 +1458,11 @@ def full_ethics_audit(days: int = 60):
     Combines: PII scan, minor detection, data retention, and data inventory.
     """
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         report = ethics_engine.full_ethics_audit(G)
         return report
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Full ethics audit failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1480,6 +1568,8 @@ async def import_apple_health_xml(
     except ValueError as e:
         api_logger.error("XML parsing failed", exc=e)
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Import failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1536,6 +1626,8 @@ async def add_steps(
         api_logger.info("Steps added", person=person_id, steps=steps, date=date)
         return {"status": "success", "person": person_name, "steps": steps, "date": date}
         
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Add steps failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1560,7 +1652,7 @@ async def add_heart_rate(
         if person_id not in ["leo", "jordan"]:
             raise HTTPException(status_code=400, detail="person_name must be 'Leo' or 'Jordan'")
         
-        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))  # validates the timestamp
         
         gb = get_demo_graph()
         metric_id = f"metric:{person_id}:{timestamp}:heart_rate"
@@ -1576,6 +1668,8 @@ async def add_heart_rate(
         api_logger.info("Heart rate added", person=person_id, bpm=bpm)
         return {"status": "success", "person": person_name, "bpm": bpm}
         
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Add heart rate failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1647,6 +1741,8 @@ async def add_sleep(
             "quality": quality
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Add sleep failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1717,6 +1813,8 @@ async def add_calories(
         api_logger.info("Calories added", person=person_id, calories=calories, type=type)
         return {"status": "success", "person": person_name, "calories": calories, "type": type}
         
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Add calories failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1878,6 +1976,8 @@ def configure_llm(
             "model": model,
             "vision_model": vision_model,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1903,7 +2003,7 @@ def llm_chat(
             # Build graph and get RAG context
             rag = get_rag_engine()
             try:
-                G = build_single_child_household(num_days=days)
+                G = build_demo_graph(days)
                 gb = get_demo_graph()
                 if gb and gb.G.number_of_nodes() > 5:
                     G = gb.G
@@ -1916,6 +2016,8 @@ def llm_chat(
                 results = rag.vector_store.search(message, n_results=5)
                 if results:
                     context = "\n---\n".join([r["text"] for r in results])
+            except HTTPException:
+                raise
             except Exception as e:
                 api_logger.warning("RAG context retrieval failed", exc=str(e))
 
@@ -1946,6 +2048,8 @@ def llm_chat(
         result["llm_configured"] = True
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("LLM chat failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1997,7 +2101,7 @@ def llm_health_recommendation(
 ):
     """Generate personalized health recommendations using LLM."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         context = GraphDocumentConverter.generate_person_summary(G, person_id)
 
         llm = get_llm_engine()
@@ -2017,6 +2121,8 @@ def llm_health_recommendation(
         result["person_id"] = person_id
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Health recommendation failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2038,7 +2144,7 @@ def rag_index(
             gb = get_demo_graph()
             G = gb.G
         else:
-            G = build_single_child_household(num_days=days)
+            G = build_demo_graph(days)
 
         rag = get_rag_engine()
         stats = rag.index_graph(G, person_id)
@@ -2050,6 +2156,8 @@ def rag_index(
             "total_in_store": stats["total_in_store"],
             "person_id": person_id,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("RAG indexing failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2073,7 +2181,7 @@ def rag_query(
 
         # Auto-index if empty
         if rag.vector_store.document_count == 0:
-            G = build_single_child_household(num_days=60)
+            G = build_demo_graph(60)
             rag.index_graph(G, person_id)
 
         result = rag.query(
@@ -2084,6 +2192,8 @@ def rag_query(
         )
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("RAG query failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2099,7 +2209,7 @@ def rag_search(
         rag = get_rag_engine()
 
         if rag.vector_store.document_count == 0:
-            G = build_single_child_household(num_days=60)
+            G = build_demo_graph(60)
             rag.index_graph(G)
 
         results = rag.vector_store.search(query, n_results=n_results)
@@ -2110,6 +2220,8 @@ def rag_search(
             "total_documents": rag.vector_store.document_count,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("RAG search failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2122,7 +2234,7 @@ def rag_reindex(
 ):
     """Clear and re-index the RAG vector store."""
     try:
-        G = build_single_child_household(num_days=days)
+        G = build_demo_graph(days)
         rag = get_rag_engine()
         stats = rag.reindex(G, person_id)
         return {
@@ -2130,6 +2242,8 @@ def rag_reindex(
             "documents_indexed": stats["indexed"],
             "total_in_store": stats["total_in_store"],
         }
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("RAG reindex failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2139,10 +2253,15 @@ def rag_reindex(
 def rag_stats():
     """Get RAG vector store statistics."""
     rag = get_rag_engine()
+    try:
+        count = rag.vector_store.document_count
+    except RuntimeError as e:  # optional chromadb dependency not installed
+        return {"document_count": 0, "collection_name": "health_knowledge",
+                "status": "unavailable", "detail": str(e)}
     return {
-        "document_count": rag.vector_store.document_count,
+        "document_count": count,
         "collection_name": "health_knowledge",
-        "status": "indexed" if rag.vector_store.document_count > 0 else "empty",
+        "status": "indexed" if count > 0 else "empty",
     }
 
 
@@ -2150,11 +2269,13 @@ def rag_stats():
 # Food OCR / Image Analysis Endpoints
 # ---------------------------------------------------------
 
+@app.post("/api/food/analyze-photo", tags=["Food Analysis"])
 @app.post("/api/food/analyze-image", tags=["Food Analysis"])
 async def analyze_food_image_endpoint(
     file: UploadFile = File(...),
     person_name: str = Form("unknown"),
-    meal_date: str = Form(None),
+    person_key: Optional[str] = Form(None),
+    meal_date: Optional[str] = Form(None),
     add_to_graph: bool = Form(False),
 ):
     """
@@ -2168,6 +2289,8 @@ async def analyze_food_image_endpoint(
     5. Nutrition lookup and aggregation
     6. Optionally add to health graph
     """
+    person_name = person_key or person_name
+    meal_date = meal_date or None
     try:
         image_bytes = await file.read()
         filename = file.filename or ""
@@ -2194,6 +2317,8 @@ async def analyze_food_image_endpoint(
         )
         return analysis
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Food image analysis failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2203,7 +2328,8 @@ async def analyze_food_image_endpoint(
 async def analyze_food_text_endpoint(
     text: str = Form(...),
     person_name: str = Form("unknown"),
-    meal_date: str = Form(None),
+    person_key: Optional[str] = Form(None),
+    meal_date: Optional[str] = Form(None),
     add_to_graph: bool = Form(False),
 ):
     """
@@ -2211,6 +2337,8 @@ async def analyze_food_text_endpoint(
 
     Example: "chicken breast with rice and broccoli"
     """
+    person_name = person_key or person_name
+    meal_date = meal_date or None
     try:
         analysis = analyze_food_text(
             text=text,
@@ -2225,6 +2353,8 @@ async def analyze_food_text_endpoint(
 
         return analysis
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error("Food text analysis failed", exc=e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2261,3 +2391,202 @@ async def analyze_food_llm(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/food/search/{query}", tags=["Food Analysis"])
+def search_food_db(query: str, limit: int = 20):
+    """Search the built-in nutrition database by name or category."""
+    q = query.strip().lower()
+    results = [
+        {"name": name, **info}
+        for name, info in NUTRITION_DB.items()
+        if q and (q in name or q == info.get("category"))
+    ][:limit]
+    return {"query": query, "count": len(results), "results": results}
+
+
+# ---------------------------------------------------------
+# Recommendations (ideal targets vs. current synthetic data)
+# ---------------------------------------------------------
+
+def _person_key(person: str) -> str:
+    return person.split(":")[-1].lower()
+
+
+@app.get("/api/recommendations/{person_key}", tags=["Recommendations"])
+def get_recommendations(person_key: str, date: str = DEMO_END_DATE, days: int = 90):
+    """Food, exercise, and lifestyle suggestions based on one day's gaps. Not medical advice."""
+    key = _person_key(person_key)
+    if key not in FAMILY_PROFILES:
+        raise HTTPException(status_code=404, detail=f"Unknown person: {person_key}")
+    G = build_demo_graph(days)
+    return generate_recommendations(key, extract_day_features(G, key, date))
+
+
+@app.get("/api/recommendations/{person_key}/compare/{date}", tags=["Recommendations"])
+def compare_recommendations(person_key: str, date: str, days: int = 90):
+    """Gap analysis: a day's synthetic data vs. age and activity based targets."""
+    key = _person_key(person_key)
+    if key not in FAMILY_PROFILES:
+        raise HTTPException(status_code=404, detail=f"Unknown person: {person_key}")
+    G = build_demo_graph(days)
+    result = compare_current_vs_ideal(key, extract_day_features(G, key, date))
+    result["date"] = date
+    return result
+
+
+# ---------------------------------------------------------
+# Apple Health export import (kept local, git-ignored)
+# ---------------------------------------------------------
+
+IMPORT_DIR = Path(__file__).parent / "imported_graphs"
+_imported_graphs: dict = {}
+
+
+def _safe_key(person_key: str) -> str:
+    key = "".join(ch for ch in person_key.lower() if ch.isalnum() or ch in "-_")
+    if not key:
+        raise HTTPException(status_code=400, detail="person_key must be alphanumeric")
+    return key
+
+
+def _load_imported(key: str):
+    if key in _imported_graphs:
+        return _imported_graphs[key]["graph"]
+    path = IMPORT_DIR / f"{key}.json"
+    if path.exists():
+        data = json.loads(path.read_text())
+        G = json_graph.node_link_graph(data["graph"], directed=True, edges="links")
+        _imported_graphs[key] = {"graph": G, "meta": data["meta"]}
+        return G
+    raise HTTPException(status_code=404, detail=f"No imported graph for '{key}'")
+
+
+@app.get("/api/apple-health/supported-types", tags=["Apple Health"])
+def apple_health_supported_types():
+    """HealthKit record types the streaming parser understands."""
+    return {
+        "quantity_types": sorted(QUANTITY_METRICS),
+        "workout_types": sorted(WORKOUT_TYPES),
+        "sleep": "HKCategoryTypeIdentifierSleepAnalysis",
+        "total_supported": len(QUANTITY_METRICS) + len(WORKOUT_TYPES) + 1,
+    }
+
+
+@app.post("/api/apple-health/upload", tags=["Apple Health"])
+async def apple_health_upload(
+    file: UploadFile = File(...),
+    person_key: str = Form(...),
+    person_name: Optional[str] = Form(None),
+    person_role: str = Form("child"),
+    date_from: Optional[str] = Form(None),
+    date_to: Optional[str] = Form(None),
+    merge_with_synthetic: Optional[str] = Form(None),
+):
+    """
+    Parse an Apple Health export.xml into a person graph. The result is stored
+    only on this machine (backend/imported_graphs/, git-ignored).
+    """
+    key = _safe_key(person_key)
+    if not (file.filename or "").lower().endswith(".xml"):
+        raise HTTPException(status_code=400, detail="Please upload the export.xml file")
+    raw = await file.read()
+    gb = None
+    if merge_with_synthetic in ("on", "true", "1"):
+        gb = GraphBuilder()
+        gb.G = build_demo_graph(90)
+    try:
+        G, stats = parse_apple_health_export(
+            io.BytesIO(raw), person_key=key,
+            date_from=date_from or None, date_to=date_to or None,
+            person_name=person_name or None, person_role=person_role, gb=gb,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse export: {e}")
+    meta = {
+        "person_key": key,
+        "imported_at": datetime.utcnow().isoformat(),
+        "file_size_kb": round(len(raw) / 1024, 1),
+        "nodes": G.number_of_nodes(),
+        "edges": G.number_of_edges(),
+        "stats": stats,
+    }
+    IMPORT_DIR.mkdir(exist_ok=True)
+    (IMPORT_DIR / f"{key}.json").write_text(json.dumps(
+        {"meta": meta, "graph": json_graph.node_link_data(G, edges="links")}, default=str))
+    _imported_graphs[key] = {"graph": G, "meta": meta}
+    return {"status": "success", "person_key": key, "stats": stats}
+
+
+@app.get("/api/apple-health/imported", tags=["Apple Health"])
+def apple_health_imported():
+    """List imports stored on this machine."""
+    imports = {k: v["meta"] for k, v in _imported_graphs.items()}
+    if IMPORT_DIR.exists():
+        for path in IMPORT_DIR.glob("*.json"):
+            if path.stem not in imports:
+                try:
+                    imports[path.stem] = json.loads(path.read_text())["meta"]
+                except Exception:
+                    continue
+    return {"imports": list(imports.values()), "count": len(imports)}
+
+
+@app.get("/api/apple-health/graph/{person_key}", tags=["Apple Health"])
+def apple_health_graph(person_key: str):
+    """Node and edge counts for an imported graph."""
+    G = _load_imported(_safe_key(person_key))
+    node_types: dict = {}
+    for _, attrs in G.nodes(data=True):
+        t = attrs.get("type", "unknown")
+        node_types[t] = node_types.get(t, 0) + 1
+    return {"person_key": person_key, "total_nodes": G.number_of_nodes(),
+            "total_edges": G.number_of_edges(), "node_types": node_types}
+
+
+@app.delete("/api/apple-health/graph/{person_key}", tags=["Apple Health"])
+def apple_health_delete(person_key: str):
+    """Delete an imported graph from memory and disk."""
+    key = _safe_key(person_key)
+    _imported_graphs.pop(key, None)
+    path = IMPORT_DIR / f"{key}.json"
+    existed = path.exists()
+    if existed:
+        path.unlink()
+    return {"status": "deleted" if existed else "not_found", "person_key": key}
+
+
+@app.post("/api/apple-health/analyze/{person_key}", tags=["Apple Health"])
+def apple_health_analyze(person_key: str, date: Optional[str] = None):
+    """Run anomaly detection, lagged correlations, and prediction on an imported graph."""
+    key = _safe_key(person_key)
+    G = _load_imported(key)
+    person_id = f"person:{key}"
+    days = sorted(n.split(":")[-1] for n, a in G.nodes(data=True)
+                  if a.get("type") == "day" and n.startswith(f"day:{key}:"))
+    if not days:
+        raise HTTPException(status_code=404, detail="Imported graph has no days")
+    if date not in days:
+        date = days[-1]
+    result: dict = {"person_key": key, "date": date, "days_available": len(days)}
+    try:
+        result["anomaly"] = _fit_anomaly(G, person_id).predict(G, person_id, date)
+    except HTTPException:
+        raise
+    except Exception as e:
+        result["anomaly"] = {"error": str(e)}
+    try:
+        analyzer = PatternCorrelationAnalyzer(lag_days=1)
+        result["correlations"] = {"correlations": analyzer.analyze(G, person_id),
+                                  "insights": analyzer.get_insights()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        result["correlations"] = {"error": str(e)}
+    try:
+        result["prediction"] = _fit_predictor(G, person_id).predict(G, person_id, date)
+    except HTTPException:
+        raise
+    except Exception as e:
+        result["prediction"] = {"error": str(e)}
+    return result

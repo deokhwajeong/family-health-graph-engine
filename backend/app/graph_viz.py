@@ -4,7 +4,6 @@ Graph visualization utilities.
 Renders NetworkX graphs as SVG images and provides JSON data for interactive JS visualizations.
 """
 import io
-import json
 import re
 from typing import Dict, Optional, List, Any
 
@@ -251,7 +250,7 @@ def graph_to_svg(G: nx.Graph) -> bytes:
     )
 
     ax.set_title(
-        f"Health Graph — {len(G.nodes())} nodes, {len(G.edges())} edges",
+        f"Health Graph - {len(G.nodes())} nodes, {len(G.edges())} edges",
         color='#e4e6f0', fontsize=12, pad=15,
     )
     ax.axis("off")

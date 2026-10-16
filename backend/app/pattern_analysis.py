@@ -6,10 +6,9 @@ Predicts future health metrics based on historical patterns.
 
 import numpy as np
 import networkx as nx
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
-import json
 
 
 class HealthMetricPredictor:

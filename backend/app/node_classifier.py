@@ -10,10 +10,9 @@ Particularly useful for:
 
 import numpy as np
 import networkx as nx
-from typing import Dict, List, Optional
+from typing import Dict, List
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-import json
+from sklearn.preprocessing import StandardScaler
 
 
 class FoodNutritionClassifier:

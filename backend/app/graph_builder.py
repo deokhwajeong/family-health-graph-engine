@@ -5,7 +5,7 @@ This module follows the schema defined in docs/graph-schema.md.
 It uses a property graph on top of NetworkX.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 import networkx as nx
 
 

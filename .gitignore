@@ -42,3 +42,16 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local data and generated artifacts (never commit real health data)
+backend/uploads/
+backend/imported_graphs/
+backend/models/*.pkl
+*.pkl
+*.db
+*.sqlite
+export.xml
+export_cda.xml
+apple_health_export/
+.env
+.ruff_cache/

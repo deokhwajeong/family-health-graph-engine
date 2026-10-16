@@ -8,7 +8,6 @@ for food, exercise, and supplements.
 
 from __future__ import annotations
 
-import math
 from typing import Any, Dict, List, Optional
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -23,7 +22,7 @@ FAMILY_PROFILES: Dict[str, Dict[str, Any]] = {
         "weight_kg": 38,
         "height_cm": 145,
         "activity_level": "moderate",       # moderate, active kid
-        "notes": "Demo persona: omnivore, plays soccer on weekends",
+        "notes": "Demo persona: omnivore, fencing twice a week",
     },
     "mia": {
         "name": "Mia",
@@ -479,11 +478,11 @@ def generate_recommendations(
             rec = {**ex}
             # Personalisation
             if person_key == "mia" and ex["name"] == "Fencing":
-                rec["note"] = "Continue fencing — great for agility and discipline!"
+                rec["note"] = "Continue fencing - great for agility and discipline!"
             elif person_key == "alex" and ex["type"] == "strength":
                 rec["note"] = "Aligns with your current training program"
             elif "low_exercise" in gaps:
-                rec["note"] = "Activity is below target — try to add this"
+                rec["note"] = "Activity is below target - try to add this"
             exercise_recs.append(rec)
 
     exercise_recs = exercise_recs[:10]
@@ -504,7 +503,7 @@ def generate_recommendations(
             rec = {**s}
             # Personalise relevance
             if person_key == "alex" and s["name"] in ("Whey protein", "Creatine monohydrate", "BCAA"):
-                rec["relevance"] = "Already in your routine — keep it up"
+                rec["relevance"] = "Already in your routine - keep it up"
             elif person_key == "jordan" and s["name"] == "Iron":
                 rec["relevance"] = "Important for women with low red meat intake"
             elif person_key in ("leo", "mia") and s["name"] == "Calcium + Vitamin D (chewable)":

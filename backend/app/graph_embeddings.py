@@ -7,8 +7,7 @@ representing daily health patterns.
 
 import numpy as np
 import networkx as nx
-from typing import Dict, List, Tuple, Optional
-import json
+from typing import Dict, Optional
 
 
 class SimpleGraphSAGE:
@@ -215,7 +214,6 @@ def extract_day_features(G: nx.DiGraph, person_id: str, date: str) -> Dict[str, 
         return features
     
     # Meals on this day
-    day_node = G.nodes[day_id]
     meal_nodes = list(G.successors(day_id))
     
     total_calories = 0.0

@@ -1,0 +1,4 @@
+# Optional features. The app runs without these and reports them as unavailable.
+openai>=1.0.0        # /llm/* chat and LLM food analysis (needs OPENAI_API_KEY)
+chromadb>=0.4.0      # /rag/* vector search over the graph
+pytesseract>=0.3.10  # OCR for food photos (needs the tesseract binary)

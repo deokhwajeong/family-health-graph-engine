@@ -7,10 +7,9 @@ For example: food-health_outcome relationships.
 
 import numpy as np
 import networkx as nx
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-import json
 
 
 class HealthLinkPredictor:
@@ -63,7 +62,6 @@ class HealthLinkPredictor:
         if type1 == "food" and type2 == "metric":
             protein1 = n1_data.get("protein_g", 0)
             fiber1 = n1_data.get("fiber_g", 0)
-            sugar1 = n1_data.get("sugar_g", 0)
             
             # Metrics that correlate with good nutrition
             if "focus" in n2_data.get("metric_type", "").lower():
@@ -79,7 +77,7 @@ class HealthLinkPredictor:
             features.append(0.5)
         
         # Distance in graph (approximate via neighbor overlap instead of shortest path)
-        # Using Jaccard-like measure — much faster than shortest_path_length
+        # Using Jaccard-like measure - much faster than shortest_path_length
         neighbors1_set = set(G.successors(node1)) | set(G.predecessors(node1))
         neighbors2_set = set(G.successors(node2)) | set(G.predecessors(node2))
         union_size = len(neighbors1_set | neighbors2_set)
@@ -103,7 +101,7 @@ class HealthLinkPredictor:
                     d2 = date.fromisoformat(date2)
                     days_apart = abs((d1 - d2).days)
                     features.append(max(0, 1.0 - days_apart / 7.0))
-                except:
+                except ValueError:
                     features.append(0.0)
             else:
                 features.append(0.0)

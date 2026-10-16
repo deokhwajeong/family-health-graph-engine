@@ -5,16 +5,15 @@ Provides:
   1. Image-based text extraction (OCR) using pytesseract or regex fallback
   2. Food name recognition from extracted text
   3. Nutritional information lookup from a built-in database
-  4. Graph integration — adds recognized foods as meal nodes
+  4. Graph integration - adds recognized foods as meal nodes
 """
 
 from __future__ import annotations
 
-import base64
 import io
 import re
 import hashlib
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
@@ -287,7 +286,7 @@ def extract_text_from_image(image_bytes: bytes) -> Tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-#  Image Color Analysis — suggest foods when OCR finds nothing
+#  Image Color Analysis - suggest foods when OCR finds nothing
 # ---------------------------------------------------------------------------
 
 # Dominant-colour → food-category mapping
@@ -434,7 +433,7 @@ def recognize_foods_from_filename(filename: str) -> List[Dict[str, Any]]:
     name = filename.rsplit(".", 1)[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
     name = name.replace("-", " ").replace("_", " ").lower()
 
-    # Only do exact alias matching — no fuzzy for filenames
+    # Only do exact alias matching - no fuzzy for filenames
     normalized = _normalize(name)
     words = normalized.split()
     found: Dict[str, Dict[str, Any]] = {}

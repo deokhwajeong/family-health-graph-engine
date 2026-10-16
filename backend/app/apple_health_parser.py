@@ -24,8 +24,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
-from io import BytesIO
+from datetime import datetime, date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, BinaryIO
 
@@ -426,7 +425,7 @@ class AppleHealthParser:
             gb: Optional existing GraphBuilder to add to (for multi-person)
 
         Returns:
-            (graph, stats) — NetworkX DiGraph and import statistics
+            (graph, stats) - NetworkX DiGraph and import statistics
         """
         # Reset state
         self._records_by_day.clear()

@@ -374,7 +374,7 @@
     <div class="page-header">
       <div>
         <h2>Dashboard</h2>
-        <div class="subtitle">Demo Family Health Graph Engine — 4 Members × 90 Days</div>
+        <div class="subtitle">Demo Family Health Graph Engine - 4 Members × 90 Days</div>
       </div>
       <button class="btn btn-primary" onclick="trainAllModels()">
         🧠 Train All Models
@@ -436,7 +436,7 @@
     <div class="page-header">
       <div>
         <h2>Graph Visualization</h2>
-        <div class="subtitle">Health Data Relationship Network — Interactive Force-Directed Graph</div>
+        <div class="subtitle">Health Data Relationship Network - Interactive Force-Directed Graph</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center;">
         <select id="graph-days-select" class="btn btn-outline btn-sm" style="padding:6px 12px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; cursor:pointer;">
@@ -516,7 +516,7 @@
     <div class="page-header">
       <div>
         <h2>Anomaly Detection</h2>
-        <div class="subtitle">Isolation Forest + LOF Ensemble — Behavioral Anomaly Detection</div>
+        <div class="subtitle">Isolation Forest + LOF Ensemble - Behavioral Anomaly Detection</div>
       </div>
     </div>
     <div class="person-tabs" id="person-tabs-anomaly">
@@ -702,7 +702,7 @@
     <div class="page-header">
       <div>
         <h2>🎯 Health Goals & Recommendations</h2>
-        <div class="subtitle">Ideal targets vs. current status — personalized food, exercise &amp; supplement advice</div>
+        <div class="subtitle">Ideal targets vs. current status - personalized food, exercise &amp; supplement advice</div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="loadRecommendations()">🔄 Refresh</button>
     </div>
@@ -1478,7 +1478,7 @@ async function loadTrendCharts() {
     // Fetch for Leo (primary child)
     const results = await Promise.all(
       dates.map(d =>
-        api(`/ml/insights/daily/person%3Asei/${d}?days=${DAYS}`).catch(() => null)
+        api(`/ml/insights/daily/person%3Aleo/${d}?days=${DAYS}`).catch(() => null)
       )
     );
 
@@ -1506,7 +1506,7 @@ async function loadTrendCharts() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { labels: { color: '#8b8fa3', font: { size: 11 } } },
-          title: { display: true, text: '👦 Leo — Nutrition & Metrics', color: '#e4e6f0', font: { size: 12 } }
+          title: { display: true, text: '👦 Leo - Nutrition & Metrics', color: '#e4e6f0', font: { size: 12 } }
         },
         scales: {
           x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } },
@@ -1531,7 +1531,7 @@ async function loadTrendCharts() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { labels: { color: '#8b8fa3', font: { size: 11 } } },
-          title: { display: true, text: '👦 Leo — Sleep Patterns', color: '#e4e6f0', font: { size: 12 } }
+          title: { display: true, text: '👦 Leo - Sleep Patterns', color: '#e4e6f0', font: { size: 12 } }
         },
         scales: {
           x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2e3345' } },
@@ -1767,7 +1767,7 @@ async function loadAnomaly(personId) {
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
         <div style="font-size:28px;">${person.emoji}</div>
         <div>
-          <div style="font-size:16px; font-weight:600;">${person.name} — 2-Week Anomaly Detection</div>
+          <div style="font-size:16px; font-weight:600;">${person.name} - 2-Week Anomaly Detection</div>
           <div style="font-size:12px; color:var(--text2);">${anomalyCount}/${validResults.length} days anomaly detected</div>
         </div>
       </div>
@@ -1934,7 +1934,7 @@ async function loadPrediction(personId) {
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
         <div style="font-size:28px;">${person.emoji}</div>
         <div>
-          <div style="font-size:16px; font-weight:600;">${person.name} — Health Prediction & Correlations</div>
+          <div style="font-size:16px; font-weight:600;">${person.name} - Health Prediction & Correlations</div>
           <div style="font-size:12px; color:var(--text2);">${DATE} analysis</div>
         </div>
       </div>
@@ -2315,13 +2315,13 @@ function displayFoodResults(data) {
       <div style="padding:20px;">
         <div style="text-align:center; margin-bottom:16px;">
           <div style="font-size:36px; margin-bottom:8px;">📸</div>
-          <div style="font-size:14px; color:var(--text);">Photo received — text-based OCR found no readable food labels</div>
+          <div style="font-size:14px; color:var(--text);">Photo received - text-based OCR found no readable food labels</div>
           <div style="font-size:12px; color:var(--text2); margin-top:4px;">OCR works best with menus, receipts, and nutrition labels</div>
         </div>
         ${suggestHTML}
         <div style="margin-top:20px;">
           <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:8px;">
-            🍱 Quick Pick — click foods in your photo:
+            🍱 Quick Pick - click foods in your photo:
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;">
             ${quickFoods.map(f => `
@@ -2332,7 +2332,7 @@ function displayFoodResults(data) {
             `).join('')}
           </div>
           <div style="font-size:13px; color:var(--text2); margin-bottom:8px;">
-            ✏️ Or type your own — then click "Analyze Text":
+            ✏️ Or type your own - then click "Analyze Text":
           </div>
           <div style="display:flex; gap:8px;">
             <input type="text" id="food-quick-input" placeholder="e.g. chicken breast, rice, salad"
@@ -2752,7 +2752,7 @@ async function viewImportedGraph(personKey) {
     const typeEntries = Object.entries(data.node_types || {});
 
     section.innerHTML = `
-      <h3>📊 ${personKey} — Imported Graph Details</h3>
+      <h3>📊 ${personKey} - Imported Graph Details</h3>
       <div class="grid grid-4" style="margin-top:12px;">
         <div class="card">
           <div class="card-title">Total Nodes</div>
@@ -2836,7 +2836,7 @@ async function analyzeImported(personKey) {
     }
 
     section.innerHTML = `
-      <h3>🔮 ${personKey} — ML Analysis Results</h3>
+      <h3>🔮 ${personKey} - ML Analysis Results</h3>
       <div class="grid grid-3" style="margin-top:12px;">
         ${predHTML}
         ${corrHTML}

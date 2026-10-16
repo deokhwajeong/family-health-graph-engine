@@ -6,11 +6,10 @@ Detects unusual health patterns using Isolation Forest and Local Outlier Factor.
 
 import numpy as np
 import networkx as nx
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
-import json
 
 
 class HealthAnomalyDetector:
@@ -235,9 +234,8 @@ class HealthAnomalyDetector:
             reasons.append("Low fiber intake")
         
         # High activity without food
-        activity = day_features.get("activity_count", 0)
         calories_burned = day_features.get("total_calories_burned", 0)
-        if activity > 0 and calories < 1500:
+        if calories_burned >= 300 and calories < 1500:
             reasons.append("High activity with low calorie intake")
         
         return reasons
@@ -312,7 +310,8 @@ class PatternCorrelationAnalyzer:
                         values1.append(v1)
                         values2_lagged.append(v2)
             
-            if len(values1) > 2:
+            # Skip constant series: correlation is undefined there.
+            if len(values1) > 2 and np.std(values1) > 0 and np.std(values2_lagged) > 0:
                 corr = float(np.corrcoef(values1, values2_lagged)[0, 1])
                 if not np.isnan(corr):
                     correlations[f"{feat1}->{feat2}(+{self.lag_days}d)"] = corr

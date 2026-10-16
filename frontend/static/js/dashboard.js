@@ -166,15 +166,15 @@ function updateTodayStats() {
 
 function updateFamilyActivity() {
     // Mock data - in production, fetch from API
-    const seiActivity = document.getElementById('leo-last-activity');
-    const deokhwaActivity = document.getElementById('jordan-last-activity');
+    const leoActivity = document.getElementById('leo-last-activity');
+    const jordanActivity = document.getElementById('jordan-last-activity');
     
-    if (seiActivity) {
-        seiActivity.textContent = 'Last meal: Lunch at 12:30 PM';
+    if (leoActivity) {
+        leoActivity.textContent = 'Last meal: Lunch at 12:30 PM';
     }
     
-    if (deokhwaActivity) {
-        deokhwaActivity.textContent = 'Last activity: Morning walk at 7:00 AM';
+    if (jordanActivity) {
+        jordanActivity.textContent = 'Last activity: Morning walk at 7:00 AM';
     }
 }
 

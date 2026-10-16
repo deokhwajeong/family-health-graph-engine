@@ -10,11 +10,8 @@ Provides:
 
 from __future__ import annotations
 
-import hashlib
-import json
-import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
@@ -567,7 +564,7 @@ class RAGEngine:
                 "(Call POST /rag/index)"
             )
 
-        answer = "🔍 **Search-based answer** (LLM API key not configured — showing search results only)\n\n"
+        answer = "🔍 **Search-based answer** (LLM API key not configured - showing search results only)\n\n"
         for i, doc in enumerate(search_results[:3], 1):
             relevance = 1.0 - doc.get("distance", 0)
             answer += f"**[{i}]** (relevance: {relevance:.0%})\n{doc['text']}\n\n"

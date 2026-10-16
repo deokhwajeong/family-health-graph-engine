@@ -4,9 +4,8 @@ Utility functions for the Household Health Graph API.
 Includes validation, normalization, and helper functions.
 """
 
-from datetime import datetime, date
+from datetime import datetime
 from typing import Optional, List
-import re
 
 
 def validate_person_id(person_id: str) -> str:
@@ -129,7 +128,7 @@ def get_date_range_description(start_date: str, end_date: str) -> str:
                 return f"{start.strftime('%B %d-%d, %Y')}"
             return f"{start.strftime('%B %d')} - {end.strftime('%B %d, %Y')}"
         return f"{start.strftime('%B %d, %Y')} - {end.strftime('%B %d, %Y')}"
-    except:
+    except ValueError:
         return f"{start_date} to {end_date}"
 
 

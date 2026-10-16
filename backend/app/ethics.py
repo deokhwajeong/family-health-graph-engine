@@ -20,7 +20,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import networkx as nx
 import numpy as np
@@ -210,11 +210,11 @@ class PrivacyGuard:
         if risk == RiskLevel.CRITICAL:
             recs.append("URGENT: Critical PII exposure detected. Anonymize immediately.")
         if any(p["pii_type"] in ("ssn", "korean_rrn") for p in pii_found):
-            recs.append("Government ID numbers detected — remove or hash them.")
+            recs.append("Government ID numbers detected - remove or hash them.")
         if any(p["pii_type"] == "email" for p in pii_found):
-            recs.append("Email addresses found — consider pseudonymization.")
+            recs.append("Email addresses found - consider pseudonymization.")
         if any(p["pii_type"] == "sensitive_field_name" for p in pii_found):
-            recs.append("Sensitive field names present — review data minimization.")
+            recs.append("Sensitive field names present - review data minimization.")
         if not pii_found:
             recs.append("No PII detected. Graph data appears clean.")
 
@@ -764,7 +764,6 @@ class FairnessAuditor:
         self, groups: Dict[str, List[float]]
     ) -> Dict[str, Any]:
         """Compute standard fairness metrics."""
-        group_names = list(groups.keys())
         rates = {}
 
         for g, vals in groups.items():
@@ -1038,7 +1037,6 @@ class DataGovernance:
             # Try to parse date from node id or attributes
             date_str = attrs.get("date") or node_id.split(":")[-1]
             try:
-                from datetime import date as date_type
                 parts = date_str.split("-")
                 if len(parts) == 3:
                     node_date = datetime(int(parts[0]), int(parts[1]), int(parts[2]))
@@ -1222,9 +1220,9 @@ class EthicsEngine:
         if pii_report["risk_level"] in ("high", "critical"):
             risks.append("PII exposure detected")
         if minor_report:
-            risks.append(f"{len(minor_report)} minor(s) detected — ensure guardian consent")
+            risks.append(f"{len(minor_report)} minor(s) detected - ensure guardian consent")
         if retention_report["action_required"]:
-            risks.append("Expired data found — review retention policy")
+            risks.append("Expired data found - review retention policy")
 
         overall_risk = (
             RiskLevel.CRITICAL if any("PII" in r for r in risks)
