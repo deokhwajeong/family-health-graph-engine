@@ -1,420 +1,193 @@
-
 # Family Health Graph Engine
 
-> **Graph-based family health modeling + AI-powered dashboard**
->
-> A full-stack portfolio project that models family health data as a knowledge graph and provides insights using ML/LLM/RAG
+[![CI](https://github.com/deokhwajeong/family-health-graph-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/deokhwajeong/family-health-graph-engine/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688)
+![Data](https://img.shields.io/badge/demo%20data-100%25%20synthetic-brightgreen)
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green?logo=fastapi)](https://fastapi.tiangolo.com)
-[![NetworkX](https://img.shields.io/badge/NetworkX-3.0+-orange)](https://networkx.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+A FastAPI service that models a household's daily health data (sleep, steps,
+heart rate, meals, activities, mood) as a knowledge graph and runs small graph
+ML models on it to surface patterns across people and across days.
 
----
+Author: Deokhwa Jeong, https://www.linkedin.com/in/deokhwa-jeong
 
-## Table of Contents
+![Dashboard](docs/images/dashboard.png)
 
-- [Motivation](#motivation)
-- [Key Concepts](#key-concepts)
-- [Screenshots](#screenshots)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [API Endpoints](#api-endpoints-67)
-- [Quick Start](#quick-start)
-- [Project Structure](#project-structure)
-- [Roadmap](#roadmap)
+## The problem
 
----
+A family's health data is scattered. Each person has their own phone, watch,
+and apps; meals live in one place, sleep in another, a child's sports schedule
+in a calendar. Questions that matter at the household level are hard to answer
+from separate tables:
 
-## Motivation
+- Does a rough night for one child show up in everyone's sleep and energy?
+- Does a high-sugar day predict worse sleep the *next* night?
+- Which foods tend to appear on a person's best-focus days?
 
-Family members' health data (sleep, diet, activity, vitals) is closely interconnected. Traditional table-based approaches struggle to capture these **relationships**.
-
-This project:
-- Models relationships between health data using a **Knowledge Graph**
-- Discovers patterns through graph ML such as **GNN / Link Prediction / Anomaly Detection**
-- Provides natural language health consultation and recommendations via **LLM (GPT-4o)**
-- Enables graph-based semantic search with **RAG (ChromaDB)**
-- Automatically analyzes food photos using **OCR + Vision AI**
-- Manages privacy, consent, fairness, and governance through an **Ethics Module**
-
----
-
-## Key Concepts
-
-```
-Household ──has_member──▶ Person
-Person ──has_day──▶ Day
-Day ──has_meal──▶ Meal ──contains_food──▶ Food
-Day ──has_sleep──▶ Sleep
-Day ──has_metric──▶ Metric (heart rate, energy, mood, focus)
-Day ──has_activity──▶ Activity
-```
-
-**8 Node Types**: Household · Person · Day · Meal · Food · Sleep · Metric · Activity
-
----
-
-## Screenshots
-
-### Dashboard Overview
-![Dashboard Overview](docs/images/dashboard_overview.png)
-
-### Graph Visualization (D3.js Force-Directed)
-![Graph Visualization](docs/images/graph_visualization.png)
-
-### Graph Insights & Analysis
-![Graph Insights](docs/images/graph_insights.png)
-
-### AI Chat (GPT-4o)
-![AI Chat](docs/images/ai_chat.png)
-
-### Family Analysis
-![Family Analysis](docs/images/family_analysis.png)
-
-### ML Prediction
-![ML Prediction](docs/images/ml_prediction.png)
-
-### Ethics & Governance
-![Ethics Governance](docs/images/ethics_governance.png)
-
-### API Documentation (Swagger)
-![API Docs](docs/images/api_docs.png)
-
----
+Modelling the data as a graph makes those relationships first-class.
+`Household -> Person -> Day -> {Meal -> Food, Sleep, Activity, Metric}` with
+`Day -> next Day` links means cross-person and cross-day questions become
+graph traversals and features, rather than ad hoc joins.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Frontend (SPA)                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │
-│  │Dashboard │ │D3 Graph  │ │AI Chat   │ │RAG Search         │  │
-│  │Overview  │ │Force-Dir │ │GPT-4o    │ │Semantic Query     │  │
-│  └──────────┘ └──────────┘ └──────────┘ └───────────────────┘  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │
-│  │Person    │ │Anomaly   │ │ML Predict│ │Ethics Dashboard   │  │
-│  │Insights  │ │Detection │ │& Classify│ │Privacy & Consent  │  │
-│  └──────────┘ └──────────┘ └──────────┘ └───────────────────┘  │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ REST API (67+ endpoints)
-┌─────────────────────────┴───────────────────────────────────────┐
-│                    FastAPI Backend                               │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │ Graph Engine (NetworkX DiGraph)                            │  │
-│  │  • graph_builder   • synthetic_data   • graph_viz          │  │
-│  │  • graph_embeddings  • pattern_analysis                    │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│  │ ML Pipeline  │ │ LLM Engine   │ │ RAG Engine               │ │
-│  │ • Anomaly    │ │ • GPT-4o     │ │ • ChromaDB               │ │
-│  │ • Prediction │ │ • Streaming  │ │ • Sentence Embeddings    │ │
-│  │ • Link Pred  │ │ • Vision AI  │ │ • Semantic Search        │ │
-│  │ • GNN Embed  │ │ • Sessions   │ │ • Auto-Indexing          │ │
-│  └──────────────┘ └──────────────┘ └──────────────────────────┘ │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│  │ Food OCR     │ │ Apple Health │ │ Ethics Module            │ │
-│  │ • Tesseract  │ │ • XML Import │ │ • Privacy / Consent      │ │
-│  │ • LLM Vision │ │ • Shortcuts  │ │ • Fairness / Governance  │ │
-│  └──────────────┘ └──────────────┘ └──────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Sources
+        S1[Synthetic generator<br/>Demo family, 4 people]
+        S2[Apple Health export.xml<br/>streaming parser]
+        S3[Food text / photo<br/>nutrition lookup]
+    end
+    subgraph Graph["Knowledge graph (NetworkX DiGraph)"]
+        H[Household] --> P[Person] --> D[Day]
+        D --> M[Meal] --> F[Food]
+        D --> SL[Sleep]
+        D --> A[Activity]
+        D --> MT[Metric]
+        D -. next day .-> D
+    end
+    subgraph ML["Graph ML (scikit-learn / NumPy)"]
+        E[GraphSAGE-style embeddings]
+        AN[Anomaly detection<br/>Isolation Forest + LOF]
+        C[Lagged correlations<br/>and association rules]
+        PR[Next-day metric prediction]
+        LP[Link prediction]
+        NC[Node classification]
+    end
+    S1 --> Graph
+    S2 --> Graph
+    S3 --> Graph
+    Graph --> ML
+    ML --> API[FastAPI<br/>77 operations, OpenAPI docs]
+    Graph --> API
+    API --> UI[Single-page dashboard<br/>D3 + Chart.js]
+    API --> G[Ethics module<br/>consent, minors, retention, audit]
 ```
 
----
+| Path | What lives there |
+|---|---|
+| `backend/main.py` | FastAPI app and all routes |
+| `backend/app/graph_builder.py` | Graph schema helpers (`add_person`, `add_day`, `add_meal`, ...) |
+| `backend/app/synthetic_data.py` | Fictional Demo family generator |
+| `backend/app/graph_embeddings.py`, `anomaly_detection.py`, `pattern_analysis.py`, `link_prediction.py`, `node_classifier.py` | ML models |
+| `backend/app/apple_health_parser.py` | Streaming parser for Apple Health `export.xml` |
+| `backend/app/health_recommendations.py` | Age and activity based targets, gap analysis |
+| `backend/app/ethics.py` | PII scan, consent, minor protection, fairness audit, retention |
+| `backend/static/index.html` | The dashboard served at `/` |
+| `backend/train_models.py` | Optional: persist all models to `backend/models/` |
+| `tests/` | Pytest suite (synthetic data and API smoke tests) |
+| `docs/graph-schema.md`, `docs/ml-models.md` | Schema and model notes |
 
-## Features
+## Features (verified locally)
 
-### Core Graph Engine
-- [x] Health knowledge graph based on NetworkX DiGraph
-- [x] 8 node types with relationship definitions
-- [x] Synthetic data generator (14-day multi-person household)
-- [x] D3.js Force-Directed graph visualization
-- [x] Graph insight analysis (sleep, activity, nutrition, structure)
+Each of these was exercised through the running app and is covered by the
+test suite unless noted.
 
-### ML / AI Pipeline
-- [x] Node2Vec graph embeddings (128 dimensions)
-- [x] Isolation Forest anomaly detection
-- [x] Health metric prediction (Ridge Regression)
-- [x] Link Prediction (common neighbors, Jaccard coefficient)
-- [x] Food/Activity classifier (Random Forest)
-- [x] Association rule mining (Apriori)
+- **Graph views.** Interactive force-directed graph of the last N days
+  (`/api/graph/d3`), graph statistics, and rule-based per-person insights
+  (sleep, activity, food variety).
+- **Person insights.** Per-day features walked from the graph: calories,
+  protein, fiber, sugar, sleep duration and quality, activity, energy, focus,
+  mood, steps, resting heart rate.
+- **Anomaly detection.** Isolation Forest + LOF per person, with readable reasons.
+- **Cross-day patterns.** Lagged correlations, for example
+  `sleep_quality -> focus(+1d)` at about r = 0.7 and
+  `sugar -> sleep_quality(+1d)` at about r = -0.6 on the demo data, plus
+  association rules.
+- **Next-day prediction** of energy, focus, and mood, with feature importance.
+- **Link prediction** and **node classification** (foods, activities, daily status).
+- **Health goals.** Current vs. target gap analysis and suggestions per person.
+  Non-diagnostic; not medical advice.
+- **Apple Health import.** Upload `export.xml`, parse it into a person graph,
+  run the same analyses on it, delete it. Stored only on your machine.
+- **Food analysis** from a text description against a built-in nutrition table.
+- **Ethics and governance.** PII scan, consent grant/withdraw with audit
+  trail, minor detection (guardian consent), fairness audit, retention checks.
+- **Models are optional on disk.** The repo ships no `.pkl` files; models are
+  fitted on demand and cached in memory. A corrupt or stale model file falls
+  back to refitting instead of crashing.
 
-### LLM & RAG
-- [x] GPT-4o / GPT-4o-mini chat engine
-- [x] Streaming responses (SSE)
-- [x] Session management and conversation history
-- [x] Health recommendation generation (graph context-based)
-- [x] ChromaDB vector store
-- [x] Semantic search and auto-indexing
+| Graph visualization | Cross-day correlations and prediction |
+|---|---|
+| ![Graph](docs/images/graph-visualization.png) | ![Prediction](docs/images/ml-prediction-correlations.png) |
 
-### Food Analysis
-- [x] Tesseract OCR (Korean + English)
-- [x] LLM Vision analysis (GPT-4o)
-- [x] Text-based food analysis
-- [x] Automatic graph node insertion
+| Person insights | Health goals |
+|---|---|
+| ![Person](docs/images/person-insights.png) | ![Goals](docs/images/health-goals.png) |
 
-### Apple Health Integration
-- [x] Apple Health XML import
-- [x] iOS Shortcuts integration (steps, heart rate, sleep, calories)
-- [x] Shortcuts guide page
+Optional, not enabled by default: LLM chat and LLM food-photo analysis need
+`OPENAI_API_KEY` and `pip install -r backend/requirements-optional.txt`; RAG
+search needs `chromadb`; photo OCR needs `pytesseract`. Without them the
+endpoints report the feature as unavailable rather than failing.
 
-### Ethics & Governance
-- [x] PII scanning and anonymization
-- [x] Consent management (grant/withdraw/audit trail)
-- [x] Minor protection (guardian approval)
-- [x] Fairness audit (anomaly detection bias check)
-- [x] Transparency (model cards, decision logs)
-- [x] Governance (data retention, deletion requests)
+## Quickstart
 
----
-
-## Tech Stack
-
-| Category | Technologies |
-|----------|-------------|
-| **Backend** | Python 3.10+, FastAPI, Uvicorn, Pydantic |
-| **Graph** | NetworkX, Node2Vec, Graph Embeddings |
-| **ML** | PyTorch, PyG (torch-geometric), scikit-learn, NumPy, SciPy, Pandas |
-| **LLM** | OpenAI API (GPT-4o), tiktoken |
-| **RAG** | ChromaDB, Sentence Embeddings |
-| **OCR** | Tesseract (pytesseract), Pillow |
-| **Frontend** | Vanilla JS (SPA), D3.js v7, Chart.js 4.4 |
-| **Visualization** | Matplotlib, Seaborn |
-| **Dev Tools** | pytest, black, flake8, mypy |
-
----
-
-## API Endpoints (67+)
-
-### System
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Dashboard (SPA) |
-| GET | `/health` | Health check |
-
-### Graph Visualization
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/graph/d3` | D3.js force graph data |
-| GET | `/api/graph/stats` | Graph statistics (density, degree, etc.) |
-| GET | `/api/graph/insights` | Health insight analysis |
-
-### ML & Embeddings
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/ml/embeddings/train` | Train graph embeddings |
-| GET | `/ml/embeddings/daily/{person_id}/{date}` | Daily embedding vector |
-| POST | `/ml/anomalies/train` | Train anomaly detection model |
-| GET | `/ml/anomalies/detect/{person_id}/{date}` | Detect anomalies |
-| GET | `/ml/anomalies/correlations/{person_id}` | Correlation analysis |
-| POST | `/ml/prediction/train` | Train prediction model |
-| GET | `/ml/prediction/metrics/{person_id}/{date}` | Metric prediction |
-| GET | `/ml/patterns/association-rules/{person_id}` | Association rules |
-| POST | `/ml/link-prediction/train` | Train link prediction |
-| GET | `/ml/link-prediction/suggest` | Link prediction suggestions |
-| POST | `/ml/classification/train` | Train classification model |
-| GET | `/ml/classification/food/{food_id}` | Food classification |
-| GET | `/ml/classification/activity/{activity_id}` | Activity classification |
-| GET | `/ml/classification/daily-status/{person_id}/{date}` | Daily status |
-| GET | `/ml/insights/daily/{person_id}/{date}` | Daily comprehensive insights |
-| GET | `/ml/summary/{person_id}` | Personal health summary |
-
-### LLM (GPT-4o)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/llm/status` | LLM configuration status |
-| POST | `/llm/configure` | Configure LLM (API key) |
-| POST | `/llm/chat` | Chat (synchronous) |
-| POST | `/llm/chat/stream` | Chat (streaming SSE) |
-| GET | `/llm/history/{session_id}` | Retrieve conversation history |
-| DELETE | `/llm/history/{session_id}` | Delete conversation history |
-| POST | `/llm/recommend/{person_id}` | Generate health recommendations |
-
-### RAG (Semantic Search)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/rag/index` | Index graph data |
-| POST | `/rag/query` | RAG query |
-| GET | `/rag/search` | Semantic search |
-| POST | `/rag/reindex` | Reindex data |
-| GET | `/rag/stats` | RAG statistics |
-
-### Food Analysis
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/food/analyze-image` | Food photo OCR analysis |
-| POST | `/api/food/analyze-text` | Text-based food analysis |
-| POST | `/api/food/analyze-llm` | LLM vision food analysis |
-
-### Apple Health / iOS Shortcuts
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/health/import-xml` | Import Apple Health XML |
-| POST | `/api/health/steps` | Record steps |
-| POST | `/api/health/heart-rate` | Record heart rate |
-| POST | `/api/health/sleep` | Record sleep |
-| POST | `/api/health/calories` | Record calories |
-| GET | `/api/health/shortcuts-guide` | iOS Shortcuts guide |
-
-### Ethics & Governance (17 endpoints)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/ethics/privacy/scan` | PII scan |
-| POST | `/ethics/privacy/anonymize` | Data anonymization |
-| POST | `/ethics/consent/grant` | Grant consent |
-| POST | `/ethics/consent/withdraw` | Withdraw consent |
-| GET | `/ethics/consent/{person_id}` | Consent status |
-| GET | `/ethics/consent/audit-trail` | Audit trail |
-| GET | `/ethics/minors/detect` | Detect minors |
-| POST | `/ethics/minors/setup-guardians` | Set up guardians |
-| GET | `/ethics/minors/evaluate/{person_id}` | Evaluate minor |
-| POST | `/ethics/fairness/audit-anomalies` | Fairness audit |
-| GET | `/ethics/fairness/history` | Fairness history |
-| GET | `/ethics/transparency/model-card/{model_name}` | Model card |
-| GET | `/ethics/transparency/compliance-report` | Compliance report |
-| GET | `/ethics/transparency/decisions` | Decision log |
-| GET | `/ethics/governance/retention` | Data retention policy |
-| POST | `/ethics/governance/deletion-request` | Deletion request |
-| GET | `/ethics/governance/data-inventory` | Data inventory |
-| GET | `/ethics/audit` | Comprehensive ethics audit |
-
-### Debug
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/ml/debug/graph-stats` | Graph ML statistics |
-| GET | `/debug/example-graph` | Example graph |
-| GET | `/debug/synthetic-graph` | Synthetic graph |
-| GET | `/debug/example-graph/svg` | Example graph SVG |
-| GET | `/debug/synthetic-graph/svg` | Synthetic graph SVG |
-| GET | `/debug/synthetic-graph/html` | Synthetic graph HTML |
-
-> Full API documentation available at `http://localhost:8000/docs` (Swagger UI) after starting the server.
-
----
-
-## Quick Start
-
-### 1. Clone & Install
+Requires Python 3.10 or newer.
 
 ```bash
 git clone https://github.com/deokhwajeong/family-health-graph-engine.git
 cd family-health-graph-engine
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt        # runtime + pytest + ruff
 
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-pip install -r backend/requirements.txt
+uvicorn backend.main:app --port 8102
 ```
 
-### 2. Environment Variables (Optional)
+Then open:
 
-To use LLM/RAG features, create a `.env` file in the project root:
+- Dashboard: http://localhost:8102/
+- Interactive API docs: http://localhost:8102/docs
 
-```env
-OPENAI_API_KEY=sk-your-api-key
-OPENAI_MODEL=gpt-4o           # Default: gpt-4o-mini
-```
-
-### 3. Run Server
+Some calls to try:
 
 ```bash
-cd family-health-graph-engine
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+curl "localhost:8102/api/graph/stats?days=14"
+curl "localhost:8102/ml/insights/daily/person:mia/2025-07-10?days=90"
+curl "localhost:8102/ml/anomalies/correlations/person:alex?days=90"
+curl "localhost:8102/api/recommendations/leo/compare/2025-07-13"
 ```
 
-### 4. Open Dashboard
+The demo window ends on 2025-07-13; `days` selects how many days before that
+to generate (1 to 365). Optionally persist models with
+`python backend/train_models.py` (writes to `backend/models/`, git-ignored).
 
-```
-http://localhost:8000
-```
+## Tests and CI
 
-### 5. API Documentation
-
-```
-http://localhost:8000/docs      # Swagger UI
-http://localhost:8000/redoc     # ReDoc
+```bash
+ruff check backend tests
+pytest -q
 ```
 
----
+Measured on 2026-10-16: **25 tests pass** in about 3 s on Python 3.12 and on
+Python 3.10, and ruff reports no issues. GitHub Actions
+(`.github/workflows/ci.yml`) runs ruff, pytest, and a `train_models.py` smoke
+run on Python 3.10, 3.11, and 3.12 for every push and pull request to `main`.
 
-## Project Structure
+The tests cover the synthetic generator (four fictional members, stable data
+per day, discoverable cross-day signal), every dashboard endpoint without any
+saved model, model training and reuse, recommendations, the ethics audit, and
+an Apple Health import round trip using a generated sample export.
 
-```
-family-health-graph-engine/
-├── backend/
-│   ├── main.py                    # FastAPI app (67+ endpoints)
-│   ├── requirements.txt           # Python dependencies
-│   ├── train_models.py            # Model training script
-│   ├── app/
-│   │   ├── graph_builder.py       # NetworkX graph construction
-│   │   ├── synthetic_data.py      # Synthetic health data generator
-│   │   ├── graph_viz.py           # Graph visualization (Matplotlib)
-│   │   ├── graph_embeddings.py    # Node2Vec embeddings
-│   │   ├── anomaly_detection.py   # Isolation Forest anomaly detection
-│   │   ├── pattern_analysis.py    # Association rules & patterns
-│   │   ├── link_prediction.py     # Link prediction algorithms
-│   │   ├── node_classifier.py     # Food/Activity classification
-│   │   ├── health_recommendations.py  # Rule-based recommendations
-│   │   ├── llm_engine.py          # OpenAI GPT-4o chat engine
-│   │   ├── rag_engine.py          # ChromaDB RAG pipeline
-│   │   ├── food_ocr.py            # Tesseract + LLM Vision OCR
-│   │   ├── apple_health.py        # Apple Health XML parser
-│   │   ├── apple_health_parser.py # Apple Health data mapper
-│   │   ├── ethics.py              # Ethics & governance module
-│   │   ├── schemas.py             # Pydantic models
-│   │   ├── config.py              # Configuration
-│   │   └── logger.py              # Logging setup
-│   ├── static/
-│   │   └── index.html             # SPA Dashboard (3300+ lines)
-│   ├── models/                    # Trained model files
-│   ├── uploads/                   # Uploaded health data
-│   └── imported_graphs/           # Imported graph JSON files
-├── frontend/                      # Alternative frontend
-│   ├── index.html
-│   └── static/
-│       ├── css/styles.css
-│       └── js/
-│           ├── app.js
-│           ├── dashboard.js
-│           └── apple-health.js
-├── docs/
-│   ├── graph-schema.md            # Graph schema documentation
-│   └── images/                    # Screenshots & diagrams
-└── README.md
-```
+## Privacy
 
----
+- **All demo data is synthetic.** The household "Demo family" and its members
+  Mia, Leo, Alex, and Jordan are fictional, and every value is generated by
+  `backend/app/synthetic_data.py`.
+- **Real imports stay local.** Uploaded Apple Health exports are parsed in
+  memory and saved only to `backend/imported_graphs/` on your machine. That
+  folder, `backend/uploads/`, trained models (`*.pkl`), databases, `.env`, and
+  `export.xml` files are all in `.gitignore`. A delete endpoint removes an
+  import from memory and disk.
+- The ethics module demonstrates consent, minor protection, and retention
+  rules on the graph itself; it is a design exercise, not a compliance claim.
 
 ## Roadmap
 
-### Phase 1 — Core Graph Engine (Complete)
-- [x] Health knowledge graph modeling
-- [x] Synthetic data generation
-- [x] Graph visualization (SVG, D3.js)
-- [x] Basic CRUD API
-
-### Phase 2 — ML & AI (Complete)
-- [x] Graph embeddings (Node2Vec)
-- [x] Anomaly detection (Isolation Forest)
-- [x] Health metric prediction
-- [x] LLM chat engine (GPT-4o)
-- [x] RAG semantic search (ChromaDB)
-- [x] Food photo OCR analysis
-- [x] Ethics & Governance module
-- [x] Apple Health integration
-
-### Phase 3 — Production Ready (Planned)
-- [ ] User authentication (OAuth2 / JWT)
-- [ ] PostgreSQL / Neo4j persistence
-- [ ] TV UI ambient display
-- [ ] Mobile PWA optimization
-- [ ] Multi-household support
-- [ ] CI/CD pipeline
-- [ ] Docker Compose deployment
-
----
-
-## License
-
-This project is licensed under the MIT License.
+- Persist graphs in a graph database instead of rebuilding them per request.
+- Cross-person features (for example a shared "household rough night" signal)
+  as first-class edges, and a household-level anomaly view.
+- Replace the NumPy GraphSAGE sketch with PyTorch Geometric once there is
+  enough data to train it.
+- Per-person consent checks enforced in every ML route, not only in the
+  ethics endpoints.
+- Split `backend/main.py` into routers and add typed response models.

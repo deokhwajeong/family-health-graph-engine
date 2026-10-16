@@ -56,7 +56,7 @@ A family member.
 
 Required attributes:
 
-* `id: str`              for example: `"person:mia"`, `"person:jun"`
+* `id: str`              for example: `"person:mia"`, `"person:leo"`
 * `type: "person"`
 * `household_id: str`
 * `name: str`
